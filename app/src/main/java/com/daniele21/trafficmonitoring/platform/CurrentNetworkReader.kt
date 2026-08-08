@@ -22,7 +22,18 @@ data class NetworkContextSnapshot(
     val interfaceNames: String?,
     val displayName: String,
     val rawSummaryJson: String
-)
+) {
+    val identity: String
+        get() = when {
+            transportSet == "offline" -> "offline"
+            transportSet.contains("vpn") -> "vpn:${networkHandle ?: interfaceNames ?: "unknown"}"
+            ssid != null -> "wifi:ssid:$ssid"
+            transportSet.contains("wifi") -> "wifi:${networkHandle ?: interfaceNames ?: "unknown"}"
+            transportSet.contains("cellular") -> "cellular:${networkHandle ?: interfaceNames ?: "unknown"}"
+            transportSet.contains("ethernet") -> "ethernet:${interfaceNames ?: networkHandle ?: "unknown"}"
+            else -> "network:${networkHandle ?: interfaceNames ?: transportSet}"
+        }
+}
 
 class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
     private val connectivityManager =
