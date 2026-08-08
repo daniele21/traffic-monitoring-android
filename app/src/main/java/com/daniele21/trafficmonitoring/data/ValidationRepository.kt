@@ -75,10 +75,11 @@ class ValidationRepository(
 
     suspend fun captureNetworkSnapshot(
         source: String = "manual",
-        kind: String = "snapshot"
+        kind: String = "snapshot",
+        snapshotOverride: NetworkContextSnapshot? = null
     ): Pair<NetworkEventEntity, NetworkContextSnapshot> = captureMutex.withLock {
         val run = ensureActiveRun()
-        val snapshot = networkContextReader.readCurrent()
+        val snapshot = snapshotOverride ?: networkContextReader.readCurrent()
         val wallClockMs = System.currentTimeMillis()
         val elapsedRealtimeMs = SystemClock.elapsedRealtime()
         val event = NetworkEventEntity(
