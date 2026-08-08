@@ -283,7 +283,17 @@ cd "$ROOT_DIR"
 
 if [[ "$CLEAR_DATA" == "true" ]]; then
     echo "Clearing debug app data..."
-    "${ADB_CMD[@]}" shell pm clear "$APP_ID" >/dev/null || true
+    if ! CLEAR_RESULT="$("${ADB_CMD[@]}" shell pm clear "$APP_ID" 2>&1 | tr -d '\r')"; then
+        echo "Error: failed to clear app data for $APP_ID." >&2
+        echo "$CLEAR_RESULT" >&2
+        exit 1
+    fi
+    if [[ "$CLEAR_RESULT" != "Success" ]]; then
+        echo "Error: Android did not confirm that app data was cleared for $APP_ID." >&2
+        echo "pm clear output: $CLEAR_RESULT" >&2
+        exit 1
+    fi
+    echo "App data clear confirmed: $CLEAR_RESULT"
 fi
 
 echo "Launching Traffic Monitoring..."
