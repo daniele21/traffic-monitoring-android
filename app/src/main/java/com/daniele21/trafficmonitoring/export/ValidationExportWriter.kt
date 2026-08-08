@@ -46,7 +46,9 @@ class ValidationExportWriter {
         .put(
             "configuration",
             JSONObject()
-                .put("backgroundStrategy", "m1a_manual_snapshot_only")
+                .put("backgroundStrategy", "m1b_in_process_network_callback")
+                .put("counterSource", "TrafficStats.getTotalRxBytes/getTotalTxBytes")
+                .put("counterScope", "device_all_interfaces_since_boot")
                 .put("recoveryCadenceHours", JSONObject.NULL)
                 .put("usageAccessGranted", false)
                 .put("wifiIdentityPermissionState", "not_requested")
@@ -83,6 +85,8 @@ class ValidationExportWriter {
         return JSONObject()
             .put("runDurationMs", (bundle.run.endedAtMs ?: System.currentTimeMillis()) - bundle.run.startedAtMs)
             .put("networkEventsBySource", eventsBySource)
+            .put("counterSnapshotCount", bundle.counterSnapshots.size)
+            .put("attributionIntervalCount", bundle.attributionIntervals.size)
             .put("pendingIntentWakeCount", bundle.networkEvents.count { it.source == "pending_intent" })
             .put("inProcessEventCount", bundle.networkEvents.count { it.source == "callback" })
             .put("recoveryWorkerCount", bundle.lifecycleEvents.count { it.kind == "recovery_worker_started" })
@@ -94,10 +98,31 @@ class ValidationExportWriter {
             .put("inferredBytes", inferredBytes)
             .put("unattributedBytes", unattributedBytes)
             .put("discardedIntervalCount", bundle.attributionIntervals.count { it.confidence == "discarded" })
+            .put("clockDiscontinuityCount", bundle.attributionIntervals.count { it.reason == "clock_discontinuity" })
             .put("counterResetCount", bundle.counterSnapshots.count { it.errorCode == "counter_reset" })
             .put("unknownSsidEventCount", unknownSsidEvents)
             .put("longestEvidenceGapMs", longestGapMs)
-            .put("networks", JSONArray())
+            .put("networks", networkSummary(bundle.attributionIntervals))
+    }
+
+    private fun networkSummary(intervals: List<AttributionIntervalEntity>): JSONArray {
+        val grouped = intervals
+            .filter { it.networkIdentity != null && (it.confidence == "confirmed" || it.confidence == "inferred") }
+            .groupBy { it.networkIdentity!! }
+            .map { (identity, rows) ->
+                val rx = rows.sumOf { it.rxBytes ?: 0L }
+                val tx = rows.sumOf { it.txBytes ?: 0L }
+                JSONObject()
+                    .put("networkIdentity", identity)
+                    .put("networkDisplayName", rows.lastOrNull()?.networkDisplayName ?: JSONObject.NULL)
+                    .put("rxBytes", rx)
+                    .put("txBytes", tx)
+                    .put("totalBytes", rx + tx)
+                    .put("intervalCount", rows.size)
+            }
+            .sortedByDescending { it.optLong("totalBytes") }
+
+        return JSONArray().also { array -> grouped.forEach(array::put) }
     }
 
     private fun networkEventsCsv(rows: List<NetworkEventEntity>): String = csv(
@@ -180,10 +205,14 @@ class ValidationExportWriter {
         App version: ${bundle.run.appVersion}
         Started: ${iso(bundle.run.startedAtMs)}
 
-        This bundle contains raw validation evidence. In M1A, network-events.csv contains manual/startup
-        snapshots and manual-markers.csv contains tester ground truth. Counter and attribution CSVs are
-        intentionally present from the first milestone even when they contain only headers; later M1
-        milestones will populate them without changing the export workflow.
+        M1B records three kinds of evidence:
+        - network-events.csv: manual/startup observations plus ConnectivityManager callbacks while the process is alive;
+        - counter-snapshots.csv: device-wide TrafficStats cumulative RX/TX counters since boot;
+        - attribution-intervals.csv: conservative deltas derived between adjacent pieces of evidence.
+
+        M1B never calls an interval confirmed. A stable observed network can only be inferred. Network changes,
+        VPN ambiguity and continuity gaps remain unattributed, while reboot/counter/clock discontinuities are
+        discarded rather than converted into synthetic usage. M1C will test network events after process death.
 
         No packet contents, destinations, DNS queries, account identifiers or device hardware identifiers
         are collected by this export.
