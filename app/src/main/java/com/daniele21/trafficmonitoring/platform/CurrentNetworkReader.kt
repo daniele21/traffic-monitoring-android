@@ -2,12 +2,14 @@ package com.daniele21.trafficmonitoring.platform
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiInfo
 import org.json.JSONObject
 
 interface NetworkContextReader {
     fun readCurrent(): NetworkContextSnapshot
+    fun readNetwork(network: Network): NetworkContextSnapshot
 }
 
 data class NetworkContextSnapshot(
@@ -40,21 +42,20 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
         context.applicationContext.getSystemService(ConnectivityManager::class.java)
 
     override fun readCurrent(): NetworkContextSnapshot {
-        val network = connectivityManager.activeNetwork
-            ?: return NetworkContextSnapshot(
-                networkHandle = null,
-                transportSet = "offline",
-                isValidated = false,
-                isMetered = null,
-                isNotVpn = null,
-                vpnPresent = false,
-                ssid = null,
-                ssidAvailability = "unavailable",
-                interfaceNames = null,
-                displayName = "Offline",
-                rawSummaryJson = "{\"state\":\"offline\"}"
-            )
+        val network = connectivityManager.activeNetwork ?: return offlineSnapshot()
+        return readNetworkInternal(network, isActiveNetwork = true)
+    }
 
+    override fun readNetwork(network: Network): NetworkContextSnapshot =
+        readNetworkInternal(
+            network = network,
+            isActiveNetwork = connectivityManager.activeNetwork == network
+        )
+
+    private fun readNetworkInternal(
+        network: Network,
+        isActiveNetwork: Boolean
+    ): NetworkContextSnapshot {
         val capabilities = connectivityManager.getNetworkCapabilities(network)
         val transports = capabilities?.let(::transportNames).orEmpty()
         val vpnPresent = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
@@ -65,6 +66,9 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
             ?.trim('"')
             ?.takeIf { it.isNotBlank() }
         val interfaceName = connectivityManager.getLinkProperties(network)?.interfaceName
+        val isMetered = capabilities?.let {
+            !it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+        }
 
         val displayName = when {
             ssid != null -> ssid
@@ -80,16 +84,17 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
             .put("networkHandle", network.networkHandle.toString())
             .put("transports", transports)
             .put("validated", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
-            .put("metered", connectivityManager.isActiveNetworkMetered)
+            .put("metered", isMetered)
             .put("vpnPresent", vpnPresent)
             .put("interfaceName", interfaceName)
+            .put("isActiveNetworkAtObservation", isActiveNetwork)
             .toString()
 
         return NetworkContextSnapshot(
             networkHandle = network.networkHandle.toString(),
             transportSet = if (transports.isEmpty()) "unknown" else transports.joinToString("|"),
             isValidated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
-            isMetered = connectivityManager.isActiveNetworkMetered,
+            isMetered = isMetered,
             isNotVpn = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN),
             vpnPresent = vpnPresent,
             ssid = ssid,
@@ -99,6 +104,20 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
             rawSummaryJson = raw
         )
     }
+
+    private fun offlineSnapshot(): NetworkContextSnapshot = NetworkContextSnapshot(
+        networkHandle = null,
+        transportSet = "offline",
+        isValidated = false,
+        isMetered = null,
+        isNotVpn = null,
+        vpnPresent = false,
+        ssid = null,
+        ssidAvailability = "unavailable",
+        interfaceNames = null,
+        displayName = "Offline",
+        rawSummaryJson = "{\"state\":\"offline\"}"
+    )
 
     private fun transportNames(capabilities: NetworkCapabilities): List<String> = buildList {
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) add("wifi")
