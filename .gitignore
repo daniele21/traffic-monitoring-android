@@ -8,3 +8,10 @@ app/build/
 captures/
 .externalNativeBuild/
 .cxx/
+dist/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
