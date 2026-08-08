@@ -12,7 +12,7 @@ The debug application ID is intentionally different from the release application
 
 ## Prerequisites
 
-Use JDK 17 and an Android SDK containing API 35, build-tools and platform-tools. CI currently uses Gradle 8.9.
+Use JDK 17 and an Android SDK containing API 35, build-tools and platform-tools. CI and local bootstrap are pinned to Gradle 8.9.
 
 A typical macOS SDK is at:
 
@@ -26,7 +26,15 @@ If the SDK is elsewhere, either export `ANDROID_HOME` or create an ignored `loca
 sdk.dir=/absolute/path/to/Android/sdk
 ```
 
-The repository currently supports either a future `./gradlew` wrapper or a system `gradle` binary. If there is no wrapper, install a compatible Gradle locally before using the scripts.
+**A global Gradle installation is not required.** The repository includes an executable `./gradlew` launcher. If Gradle is not already available, it downloads the Gradle 8.9 binary distribution into the ignored `.tooling/` directory, verifies the official SHA-256 checksum, and reuses that local copy on subsequent runs.
+
+The first local build can therefore take longer because it downloads Gradle once. Later builds do not repeat that download.
+
+You can verify the bootstrap independently with:
+
+```bash
+./gradlew --version
+```
 
 ## 1. Debug locally on an emulator
 
@@ -67,6 +75,7 @@ The runner:
 - resolves the Android SDK and `adb`;
 - optionally starts the requested AVD;
 - waits for Android boot completion;
+- resolves `./gradlew` and self-bootstraps Gradle 8.9 when needed;
 - runs `:app:installDebug`;
 - launches `com.daniele21.trafficmonitoring.debug`;
 - optionally streams logcat for only that process.
@@ -141,6 +150,8 @@ For the first Play upload, build the current `versionCode` and `versionName` fro
 ```bash
 bash scripts/build-play-release.sh build
 ```
+
+The release helper uses the same self-bootstrapping `./gradlew`, so no global Gradle installation is needed for AAB builds either.
 
 The script:
 
