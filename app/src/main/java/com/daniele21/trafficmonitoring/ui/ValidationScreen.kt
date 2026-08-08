@@ -30,9 +30,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.daniele21.trafficmonitoring.data.AttributionIntervalEntity
 import com.daniele21.trafficmonitoring.data.ManualTestMarkerEntity
 import com.daniele21.trafficmonitoring.data.NetworkEventEntity
 import java.time.Instant
+import java.util.Locale
 
 @Composable
 fun ValidationScreen(
@@ -60,7 +62,7 @@ fun ValidationScreen(
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Android validation · M1A",
+                text = "Android validation · M1B",
                 style = MaterialTheme.typography.bodyMedium
             )
 
@@ -68,7 +70,7 @@ fun ValidationScreen(
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = onRefreshNetwork, enabled = !state.isLoading) {
-                    Text("Refresh network")
+                    Text("Capture evidence")
                 }
                 Button(onClick = onExport, enabled = !state.isLoading && state.runId != null) {
                     Text("Export validation run")
@@ -77,7 +79,7 @@ fun ValidationScreen(
 
             Text("Manual test markers", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Use these immediately before or after a deliberate test action. They become human ground truth in the exported ZIP.",
+                "Use these immediately before or after a deliberate action. Every marker also captures the current network and cumulative device counters.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -103,6 +105,15 @@ fun ValidationScreen(
             )
             OutlinedButton(onClick = { customMarkerOpen = true }, enabled = !state.isLoading) {
                 Text("Add custom marker")
+            }
+
+            HorizontalDivider()
+
+            Text("Recent attribution intervals", style = MaterialTheme.typography.titleMedium)
+            if (state.recentIntervals.isEmpty()) {
+                Text("Capture at least two pieces of evidence to create an interval.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                state.recentIntervals.take(8).forEach { AttributionRow(it) }
             }
 
             HorizontalDivider()
@@ -136,7 +147,7 @@ fun ValidationScreen(
             }
 
             Text(
-                "M1A records snapshots and tester markers only. Traffic counters and background network callbacks are intentionally added in the next milestones.",
+                "M1B uses device-wide TrafficStats counters and an in-process ConnectivityManager callback. It does not yet claim that network changes are captured after Android kills the process; that is the M1C experiment.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -158,7 +169,7 @@ fun ValidationScreen(
         AlertDialog(
             onDismissRequest = { clearConfirmationOpen = false },
             title = { Text("Clear all validation data?") },
-            text = { Text("This permanently deletes all local runs, events and markers on this device.") },
+            text = { Text("This permanently deletes all local runs, events, counters, intervals and markers on this device.") },
             confirmButton = {
                 Button(onClick = {
                     onClearAll()
@@ -184,6 +195,31 @@ private fun StatusCard(state: ValidationUiState) {
                 state.currentNetwork,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Medium
+            )
+
+            val counter = state.latestCounter
+            if (counter != null) {
+                Text("Device counters since boot", style = MaterialTheme.typography.labelLarge)
+                if (counter.status == "ok" || counter.status == "reset") {
+                    Text(
+                        "↓ ${formatBytes(counter.rxBytes)}   ↑ ${formatBytes(counter.txBytes)}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    Text(
+                        "Counter status: ${counter.status}${counter.errorCode?.let { " · $it" }.orEmpty()}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Text(
+                    "${counter.bootGeneration} · ${counter.source}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            Text(
+                "In-process callback events in recent evidence: ${state.callbackEventCount}",
+                style = MaterialTheme.typography.bodySmall
             )
 
             val runText = state.runId?.let { "Run ${it.take(8)}…" } ?: "Preparing validation run…"
@@ -214,6 +250,26 @@ private fun MarkerButton(text: String, enabled: Boolean, onClick: () -> Unit) {
         enabled = enabled
     ) {
         Text(text)
+    }
+}
+
+@Composable
+private fun AttributionRow(interval: AttributionIntervalEntity) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        val bytes = if (interval.rxBytes != null || interval.txBytes != null) {
+            "↓ ${formatBytes(interval.rxBytes)} · ↑ ${formatBytes(interval.txBytes)}"
+        } else {
+            "bytes discarded"
+        }
+        Text(
+            "${formatTime(interval.endedAtMs)} · ${interval.confidence}",
+            fontWeight = FontWeight.Medium,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            "${interval.networkDisplayName ?: interval.transport} · $bytes · ${interval.reason}",
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
@@ -282,3 +338,16 @@ private fun CustomMarkerDialog(onDismiss: () -> Unit, onSave: (String, String?) 
 }
 
 private fun formatTime(epochMs: Long): String = Instant.ofEpochMilli(epochMs).toString()
+
+private fun formatBytes(bytes: Long?): String {
+    if (bytes == null) return "n/a"
+    if (bytes < 1_000L) return "$bytes B"
+    val units = arrayOf("KB", "MB", "GB", "TB")
+    var value = bytes.toDouble()
+    var unitIndex = -1
+    while (value >= 1_000.0 && unitIndex < units.lastIndex) {
+        value /= 1_000.0
+        unitIndex++
+    }
+    return String.format(Locale.US, "%.2f %s", value, units[unitIndex])
+}
