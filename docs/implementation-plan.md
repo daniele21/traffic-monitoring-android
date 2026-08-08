@@ -28,9 +28,9 @@ Gate:
 
 # M1A — Minimal Android validation app
 
-**Current implementation milestone.**
+**Status: implementation complete on the development branch; real-device gate pending.**
 
-Build the smallest installable app needed for experiments.
+The current implementation provides the smallest installable app needed for experiments and passes CI unit tests plus debug APK assembly. Do not mark M1A complete until the real-phone persistence/export checks below pass.
 
 Deliverables:
 
@@ -43,7 +43,7 @@ Deliverables:
 - recent raw-event list;
 - **Export validation run** producing the documented ZIP bundle;
 - reset/start-new-run flow;
-- basic unit tests for export/schema and domain models.
+- basic unit tests for the export contract and CSV serialization.
 
 Important ordering choice:
 
