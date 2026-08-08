@@ -18,10 +18,11 @@ class ValidationRepository(
     private val trafficCounterReader: TrafficCounterReader
 ) {
     private val dao = database.validationDao()
+    private val runMutex = Mutex()
     private val captureMutex = Mutex()
 
-    suspend fun ensureActiveRun(): ValidationRunEntity {
-        dao.activeRun()?.let { return it }
+    suspend fun ensureActiveRun(): ValidationRunEntity = runMutex.withLock {
+        dao.activeRun()?.let { return@withLock it }
         val now = System.currentTimeMillis()
         val run = ValidationRunEntity(
             id = UUID.randomUUID().toString(),
@@ -39,7 +40,7 @@ class ValidationRepository(
             notes = null
         )
         dao.insertRun(run)
-        return run
+        run
     }
 
     suspend fun recordProcessStart(): ValidationRunEntity {
@@ -157,11 +158,10 @@ class ValidationRepository(
     }
 
     suspend fun addMarker(markerType: String, label: String, notes: String? = null): ManualTestMarkerEntity {
-        val run = ensureActiveRun()
-        val (_, snapshot) = captureNetworkSnapshot(source = "marker")
+        val (event, snapshot) = captureNetworkSnapshot(source = "marker")
         val marker = ManualTestMarkerEntity(
             id = UUID.randomUUID().toString(),
-            runId = run.id,
+            runId = event.runId,
             timestampWallClockMs = System.currentTimeMillis(),
             timestampElapsedRealtimeMs = SystemClock.elapsedRealtime(),
             markerType = markerType,
@@ -173,11 +173,11 @@ class ValidationRepository(
         return marker
     }
 
-    suspend fun startNewRun(): ValidationRunEntity {
+    suspend fun startNewRun(): ValidationRunEntity = captureMutex.withLock {
         dao.activeRun()?.let { active ->
             dao.updateRun(active.copy(endedAtMs = System.currentTimeMillis()))
         }
-        return ensureActiveRun().also {
+        ensureActiveRun().also {
             dao.insertLifecycleEvent(
                 LifecycleEventEntity(
                     id = UUID.randomUUID().toString(),
@@ -214,9 +214,9 @@ class ValidationRepository(
         )
     }
 
-    suspend fun clearAllAndStartFresh(): ValidationRunEntity {
+    suspend fun clearAllAndStartFresh(): ValidationRunEntity = captureMutex.withLock {
         database.clearAllTables()
-        return ensureActiveRun()
+        ensureActiveRun()
     }
 
     private fun CounterSnapshotEntity.toEvidence(event: NetworkEventEntity?): AttributionEvidence =
