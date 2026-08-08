@@ -28,11 +28,11 @@ Gate:
 
 # M1A — Minimal Android validation app
 
-**Status: implementation complete on the development branch; real-device gate pending.**
+**Status: implementation complete; emulator persistence/export gate passed on 2026-08-08.**
 
-The current implementation provides the smallest installable app needed for experiments and passes CI unit tests plus debug APK assembly. Do not mark M1A complete until the real-phone persistence/export checks below pass.
+The validation app proved the evidence pipeline before measurement complexity was added.
 
-Deliverables:
+Delivered:
 
 - Kotlin Android project;
 - Jetpack Compose single validation screen;
@@ -43,52 +43,78 @@ Deliverables:
 - recent raw-event list;
 - **Export validation run** producing the documented ZIP bundle;
 - reset/start-new-run flow;
-- basic unit tests for the export contract and CSV serialization.
+- unit tests for the export contract and CSV serialization.
+
+Validated export run:
+
+```text
+runId: 065b1000-3bc5-4c64-bfbb-64303e30cf57
+appVersion: 0.1.0-m1a-debug
+device: Android emulator, SDK 36
+process starts: 3
+manual markers: 2
+network observations: 7
+```
+
+The same run survived process relaunches, both manual markers were preserved, exported IDs were coherent, and the future counter/attribution CSVs were present with stable headers.
+
+The run also exposed an important timing case: wall clock advanced by roughly 52 minutes while `elapsedRealtime` advanced by only roughly 22 seconds, consistent with an emulator freeze/suspension. This is now an explicit attribution discontinuity: such gaps must be discarded rather than assigned to a network.
+
+Physical-device behavior is not considered proven by M1A. It is tested together with the actual counters and callbacks in M1B/M1C, where device/OEM behavior matters.
 
 Important ordering choice:
 
 > Export comes before complex background behavior.
 
-Every subsequent experiment must already be observable.
-
-Gate:
-
-- install on a real Android phone;
-- create markers/events;
-- kill/reopen app;
-- data survives;
-- export opens on a computer and contains coherent CSV/JSON timestamps.
+Every subsequent experiment is already observable.
 
 # M1B — Counter and in-process network spike
 
-Implement platform adapters while keeping the app open/process alive.
+**Status: current implementation milestone.**
+
+Implement platform adapters while keeping the app process alive. M1B is deliberately conservative: it validates counters and event boundaries but does not claim background survival.
 
 Deliverables:
 
-- `TrafficCounterReader` using `TrafficStats` total RX/TX;
-- mobile counters captured diagnostically;
-- per-interface counters captured diagnostically where supported;
+- `TrafficCounterReader` using `TrafficStats.getTotalRxBytes()` / `getTotalTxBytes()`;
+- boot-generation capture;
 - `NetworkContextReader` using `ConnectivityManager` / `NetworkCapabilities` / `WifiInfo`;
-- regular `NetworkCallback` diagnostic stream;
-- boot/reset detection;
-- normalized `NetworkEvent` + `CounterSnapshot` persistence;
-- first deterministic `AttributionEngine` delta tests.
+- process-wide regular `NetworkCallback` diagnostic stream;
+- serialized `NetworkEvent` + `CounterSnapshot` persistence;
+- deterministic attribution between adjacent evidence;
+- wall-clock vs `elapsedRealtime` continuity check;
+- counter-regression / boot-change rejection;
+- VPN ambiguity kept unattributed;
+- M1B evidence visible in the validation UI and existing ZIP export.
+
+M1B confidence policy:
+
+```text
+same observed network + valid continuity -> inferred
+network boundary / unknown identity       -> unattributed
+VPN ambiguity                             -> unattributed
+clock discontinuity / reboot / reset      -> discarded
+confirmed                                 -> not emitted by M1B
+```
 
 Tests:
 
+- known-size download/upload;
 - Wi-Fi A → Wi-Fi B;
 - Wi-Fi → cellular → Wi-Fi;
-- known-size download/upload;
 - SSID permission allowed/denied;
 - VPN on/off;
-- reboot.
+- reboot;
+- emulator clock/suspension discontinuity fixture.
 
 Gate:
 
 - counter source is monotonic/plausible on the test device;
-- no synthetic deltas across reboot/reset;
-- network identity is observable enough for the intended Wi-Fi grouping;
-- raw evidence and derived intervals reconcile.
+- `counter-snapshots.csv` is populated;
+- `attribution-intervals.csv` reconciles with accepted counter deltas;
+- no synthetic deltas across reboot/reset/clock discontinuity;
+- callback events appear while the process exists;
+- network identity is observable enough for the intended Wi-Fi grouping.
 
 # M1C — PendingIntent background event spike
 
