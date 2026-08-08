@@ -151,7 +151,7 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
                     .toString()
             )
         }
-        return result.getOrThrow()
+        return status
     }
 
     private suspend fun refreshDashboard(currentNetwork: String = _state.value.currentNetwork) {
