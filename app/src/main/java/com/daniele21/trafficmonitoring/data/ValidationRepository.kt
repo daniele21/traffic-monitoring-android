@@ -3,15 +3,22 @@ package com.daniele21.trafficmonitoring.data
 import android.os.Build
 import android.os.SystemClock
 import com.daniele21.trafficmonitoring.BuildConfig
+import com.daniele21.trafficmonitoring.domain.AttributionEvidence
+import com.daniele21.trafficmonitoring.domain.CounterAttribution
 import com.daniele21.trafficmonitoring.platform.NetworkContextReader
 import com.daniele21.trafficmonitoring.platform.NetworkContextSnapshot
+import com.daniele21.trafficmonitoring.platform.TrafficCounterReader
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 class ValidationRepository(
     private val database: ValidationDatabase,
-    private val networkContextReader: NetworkContextReader
+    private val networkContextReader: NetworkContextReader,
+    private val trafficCounterReader: TrafficCounterReader
 ) {
     private val dao = database.validationDao()
+    private val captureMutex = Mutex()
 
     suspend fun ensureActiveRun(): ValidationRunEntity {
         dao.activeRun()?.let { return it }
@@ -64,16 +71,21 @@ class ValidationRepository(
         )
     }
 
-    suspend fun captureNetworkSnapshot(source: String = "manual"): Pair<NetworkEventEntity, NetworkContextSnapshot> {
+    suspend fun captureNetworkSnapshot(
+        source: String = "manual",
+        kind: String = "snapshot"
+    ): Pair<NetworkEventEntity, NetworkContextSnapshot> = captureMutex.withLock {
         val run = ensureActiveRun()
         val snapshot = networkContextReader.readCurrent()
+        val wallClockMs = System.currentTimeMillis()
+        val elapsedRealtimeMs = SystemClock.elapsedRealtime()
         val event = NetworkEventEntity(
             id = UUID.randomUUID().toString(),
             runId = run.id,
-            receivedAtWallClockMs = System.currentTimeMillis(),
-            receivedAtElapsedRealtimeMs = SystemClock.elapsedRealtime(),
+            receivedAtWallClockMs = wallClockMs,
+            receivedAtElapsedRealtimeMs = elapsedRealtimeMs,
             source = source,
-            kind = "snapshot",
+            kind = kind,
             androidNetworkHandle = snapshot.networkHandle,
             transportSet = snapshot.transportSet,
             isValidated = snapshot.isValidated,
@@ -85,8 +97,63 @@ class ValidationRepository(
             interfaceNames = snapshot.interfaceNames,
             rawSummaryJson = snapshot.rawSummaryJson
         )
+
+        val previousCounter = dao.latestCounterSnapshot(run.id)
+        val reading = trafficCounterReader.read()
+        val counterReset = previousCounter?.let { previous ->
+            reading.rxBytes != null && reading.txBytes != null &&
+                previous.rxBytes != null && previous.txBytes != null &&
+                previous.bootGeneration == reading.bootGeneration &&
+                (reading.rxBytes < previous.rxBytes || reading.txBytes < previous.txBytes)
+        } ?: false
+
+        val currentCounter = CounterSnapshotEntity(
+            id = UUID.randomUUID().toString(),
+            runId = run.id,
+            eventId = event.id,
+            observedAtWallClockMs = wallClockMs,
+            observedAtElapsedRealtimeMs = elapsedRealtimeMs,
+            bootGeneration = reading.bootGeneration,
+            source = source,
+            rxBytes = reading.rxBytes,
+            txBytes = reading.txBytes,
+            interfaceName = snapshot.interfaceNames,
+            status = if (counterReset) "reset" else reading.status,
+            errorCode = if (counterReset) "counter_reset" else reading.errorCode
+        )
+
         dao.insertNetworkEvent(event)
-        return event to snapshot
+
+        if (previousCounter != null) {
+            val previousEvent = previousCounter.eventId?.let { dao.networkEventById(it) }
+            val result = CounterAttribution.between(
+                previous = previousCounter.toEvidence(previousEvent),
+                current = currentCounter.toEvidence(event)
+            )
+            if (result != null) {
+                dao.insertAttributionInterval(
+                    AttributionIntervalEntity(
+                        id = UUID.randomUUID().toString(),
+                        runId = run.id,
+                        startedAtMs = result.startedAtMs,
+                        endedAtMs = result.endedAtMs,
+                        networkIdentity = result.networkIdentity,
+                        networkDisplayName = result.networkDisplayName,
+                        transport = result.transport,
+                        rxBytes = result.rxBytes,
+                        txBytes = result.txBytes,
+                        confidence = result.confidence,
+                        startEvidenceEventId = previousCounter.eventId,
+                        endEvidenceEventId = event.id,
+                        reason = result.reason,
+                        algorithmVersion = run.attributionAlgorithmVersion
+                    )
+                )
+            }
+        }
+
+        dao.insertCounterSnapshot(currentCounter)
+        event to snapshot
     }
 
     suspend fun addMarker(markerType: String, label: String, notes: String? = null): ManualTestMarkerEntity {
@@ -129,7 +196,9 @@ class ValidationRepository(
         return ValidationDashboardData(
             run = run,
             recentEvents = dao.recentNetworkEvents(run.id, limit),
-            recentMarkers = dao.recentMarkers(run.id, limit)
+            recentMarkers = dao.recentMarkers(run.id, limit),
+            recentCounters = dao.recentCounterSnapshots(run.id, limit = 12),
+            recentIntervals = dao.recentAttributionIntervals(run.id, limit = 12)
         )
     }
 
@@ -149,12 +218,47 @@ class ValidationRepository(
         database.clearAllTables()
         return ensureActiveRun()
     }
+
+    private fun CounterSnapshotEntity.toEvidence(event: NetworkEventEntity?): AttributionEvidence =
+        AttributionEvidence(
+            wallClockMs = observedAtWallClockMs,
+            elapsedRealtimeMs = observedAtElapsedRealtimeMs,
+            bootGeneration = bootGeneration,
+            rxBytes = rxBytes,
+            txBytes = txBytes,
+            eventId = eventId,
+            networkIdentity = event?.networkIdentity(),
+            networkDisplayName = event?.networkDisplayName(),
+            transport = event?.transportSet ?: "unknown"
+        )
+
+    private fun NetworkEventEntity.networkIdentity(): String = when {
+        transportSet == "offline" -> "offline"
+        vpnPresent == true || transportSet.contains("vpn") -> "vpn:${androidNetworkHandle ?: interfaceNames ?: "unknown"}"
+        ssid != null -> "wifi:ssid:$ssid"
+        transportSet.contains("wifi") -> "wifi:${androidNetworkHandle ?: interfaceNames ?: "unknown"}"
+        transportSet.contains("cellular") -> "cellular:${androidNetworkHandle ?: interfaceNames ?: "unknown"}"
+        transportSet.contains("ethernet") -> "ethernet:${interfaceNames ?: androidNetworkHandle ?: "unknown"}"
+        else -> "network:${androidNetworkHandle ?: interfaceNames ?: transportSet}"
+    }
+
+    private fun NetworkEventEntity.networkDisplayName(): String = when {
+        ssid != null -> ssid
+        transportSet == "offline" -> "Offline"
+        transportSet.contains("wifi") -> "Wi-Fi · name unavailable"
+        transportSet.contains("cellular") -> "Cellular"
+        transportSet.contains("ethernet") -> "Ethernet"
+        transportSet.contains("vpn") -> "VPN"
+        else -> transportSet
+    }
 }
 
 data class ValidationDashboardData(
     val run: ValidationRunEntity,
     val recentEvents: List<NetworkEventEntity>,
-    val recentMarkers: List<ManualTestMarkerEntity>
+    val recentMarkers: List<ManualTestMarkerEntity>,
+    val recentCounters: List<CounterSnapshotEntity>,
+    val recentIntervals: List<AttributionIntervalEntity>
 )
 
 data class ValidationExportBundle(
