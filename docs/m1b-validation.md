@@ -140,9 +140,52 @@ Two formal gate items remained open in that export:
 
 The debug launcher was subsequently hardened so `--clear-data` can no longer ignore an unsuccessful `pm clear`. Export creation also writes an `export_created` lifecycle event containing the current build version, while the run keeps its original start-version metadata.
 
+## Final M1B emulator gate — passed on 2026-08-08
+
+Export `traffic-monitoring-validation-2026-08-08T18-20-06.525Z.zip` closes the remaining emulator gate.
+
+Validated run:
+
+```text
+runId: 2eb3d446-14e2-4d30-a7c9-e641624f9a2e
+appVersion: 0.1.0-m1b-debug
+process starts: 1
+network events: 12
+in-process callback events: 8
+counter snapshots: 12
+attribution intervals: 11
+manual markers: 2
+```
+
+The run is clean M1B-only evidence. All network observations used the same Wi-Fi identity (`wifi:441492361229`), all counter values were monotonic, there were no counter resets, no process restart, no clock discontinuity and all evidence IDs/references were valid.
+
+The controlled 10 MiB download produced a non-zero and plausible device-counter movement between the marker snapshots:
+
+```text
+START_KNOWN_DOWNLOAD
+RX 15,887,346
+TX  2,150,577
+
+END_KNOWN_DOWNLOAD
+RX 27,756,881
+TX  2,386,482
+
+Delta RX: +11,869,535 B
+Delta TX:    +235,905 B
+Total:     12,105,440 B
+```
+
+The RX movement is roughly 11.32 MiB versus a 10 MiB payload. Exact equality is not expected because `TrafficStats` is device-wide and the emulator/browser generated additional traffic during the same window.
+
+First-to-last run movement was RX +11,984,260 B and TX +413,597 B = 12,397,857 B. The 11 exported attribution intervals reconcile to exactly the same 12,397,857 B, all as `inferred` on the stable observed Wi-Fi network. Maximum observed wall-clock vs `elapsedRealtime` drift between adjacent counter samples was 1 ms.
+
+**M1B emulator gate result: PASS.**
+
+This proves the M1B question on the emulator: while the process exists, cumulative `TrafficStats` counters plus the live `NetworkCallback` produce coherent, auditable intervals and conservative accounting. It does not prove background delivery after process death or physical-device Wi-Fi/cellular identity behavior.
+
 ## F. First physical-device run
 
-Once A-D pass, install the same debug APK on a real Android phone and run:
+The same M1B logic should still be validated on a real Android phone as part of the broader M1C/M1E field work:
 
 ```text
 Wi-Fi A
@@ -166,4 +209,4 @@ SSID/name availability is evaluated separately because Android permission state 
 
 ## What comes next
 
-Only after M1B evidence is coherent should M1C add the `PendingIntent` network callback path and test whether transition evidence still arrives after the application process is absent.
+M1B emulator validation is complete. M1C is now the active feasibility milestone: add the `PendingIntent` network callback path and test whether transition evidence still arrives after the application process is absent.
