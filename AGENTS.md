@@ -15,12 +15,15 @@ Read only the documents needed for the task:
 | If you are working on… | Read |
 |---|---|
 | Product scope / success criteria | `docs/product-spec.md` |
+| Brand / visual identity / product wording | `docs/brand-kit.md` |
 | Overall architecture / boundaries | `docs/architecture.md` |
 | Counters, identities, attribution | `docs/measurement-engine.md` |
 | Background survival / events / FGS | `docs/background-strategy.md` |
+| Active M1C PendingIntent validation | `docs/m1c-validation.md` |
+| M1B baseline / counter validation | `docs/m1b-validation.md` |
 | Local schema / export bundle | `docs/data-and-export.md` |
 | Implementation order / current milestone | `docs/implementation-plan.md` |
-| Real-device validation | `docs/testing.md` |
+| Broader real-device validation | `docs/testing.md` |
 | Local emulator debugging / Play release signing | `docs/local-development-and-release.md` |
 | Why key choices were made | `docs/decisions.md` |
 | Documentation map only | `docs/README.md` |
@@ -41,6 +44,17 @@ For most changes, `AGENTS.md` + one or two targeted documents should be enough.
 10. Exportability is part of the measurement spike, not a later convenience feature.
 11. Record enough lifecycle evidence to determine whether a missed network change was caused by process death, reboot, permission state, recovery delay or measurement logic.
 12. A Foreground Service is an escalation path, not the default architecture, until the standard approach is proven insufficient.
+13. Treat PendingIntent network delivery as **availability evidence**, not proof that every network loss is observable.
+14. Never use package force-stop as the positive M1C process-death test; it exercises Android's user-stopped package semantics rather than ordinary process absence.
+
+## Brand invariants
+
+- The shield is the primary symbol; do not distort or repeatedly decorate it inside product panels.
+- Product UI stays flat, restrained and highly legible even when the brand mark itself is dimensional.
+- Royal Blue is primary selection/action; Signal Cyan is live/current/peak emphasis.
+- Green, amber and red remain semantic status colors rather than decorative branding.
+- Prefer direct product language: `Current network`, `Downloaded`, `Uploaded`, `Total used`, `Usage by network`, `Peak usage`.
+- Keep raw RX/TX, interface names, callback sources and other protocol-level detail inside validation/monitor diagnostics.
 
 ## Initial technical direction
 
@@ -96,4 +110,4 @@ A change is complete when:
 
 ## Start here
 
-For a new implementation agent, read `docs/implementation-plan.md` next and follow the active milestone gate. Do not build the polished analytics product before the background-measurement feasibility gate is passed.
+For a new implementation agent, read `docs/implementation-plan.md` next and follow the active milestone gate. The current active gate is M1C; use `docs/m1c-validation.md` for the executable protocol. Do not build the polished analytics product before the background-measurement feasibility gate is passed.
