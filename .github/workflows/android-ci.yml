@@ -51,6 +51,19 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Build unsigned release AAB for local signing
+        env:
+          TRAFFIC_MONITORING_ALLOW_UNSIGNED_RELEASE: 'true'
+        run: gradle :app:bundleRelease --stacktrace
+
+      - name: Upload unsigned release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: traffic-monitoring-android-release-unsigned
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload unit-test reports
         if: always()
         uses: actions/upload-artifact@v4
