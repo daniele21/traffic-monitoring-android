@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">Traffic Monitoring</title>
+  <desc id="desc">Traffic Monitoring shield with Wi-Fi signal and upward network trend beside the brand name.</desc>
+  <rect width="960" height="360" rx="32" fill="#F2F7FD"/>
+  <g transform="translate(56 34) scale(.57)">
+    <path d="M256 24C344 24 423 56 456 82L438 322C431 391 361 449 256 488C151 449 81 391 74 322L56 82C89 56 168 24 256 24Z" fill="#020D2C" stroke="#207CCE" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M256 52C331 52 396 77 426 98L410 314C404 365 349 414 256 452C163 414 108 365 102 314L86 98C116 77 181 52 256 52Z" fill="#0E2345"/>
+    <path d="M112 180C166 139 228 132 286 154" fill="none" stroke="#0DC1F9" stroke-width="26" stroke-linecap="round"/>
+    <path d="M122 232C165 201 211 196 252 212" fill="none" stroke="#207CCE" stroke-width="24" stroke-linecap="round"/>
+    <path d="M137 282C164 264 190 261 214 271" fill="none" stroke="#002996" stroke-width="22" stroke-linecap="round"/>
+    <circle cx="174" cy="315" r="20" fill="#207CCE"/>
+    <path d="M125 360L218 275L270 310L355 218L394 249" fill="none" stroke="#0DC1F9" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M351 180L421 205L399 275L381 244L350 218Z" fill="#0DC1F9"/>
+  </g>
+  <text x="390" y="160" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="86" font-weight="700" fill="#002996">Traffic</text>
+  <text x="390" y="248" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="82" font-weight="700" fill="#0E2345">Monitoring</text>
+  <text x="394" y="292" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="24" font-weight="500" fill="#52627A">Know your network usage.</text>
+</svg>
