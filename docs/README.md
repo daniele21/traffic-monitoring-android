@@ -12,6 +12,11 @@ The documentation follows progressive disclosure. Start from the smallest docume
 4. `measurement-engine.md`
 5. `testing.md` for acceptance scenarios
 
+### Debugging locally or preparing a Play internal-test build
+
+1. `../AGENTS.md`
+2. `local-development-and-release.md`
+
 ### Changing network attribution behavior
 
 1. `../AGENTS.md`
@@ -46,6 +51,7 @@ The documentation follows progressive disclosure. Start from the smallest docume
 - `data-and-export.md` — Room entities, raw evidence, derived intervals and validation export bundle.
 - `implementation-plan.md` — phased delivery plan with hard acceptance gates.
 - `testing.md` — scripted device tests and how exported results are evaluated.
+- `local-development-and-release.md` — emulator debugging, local upload-key management, signed AAB generation and Play internal-testing flow.
 - `decisions.md` — compact architectural decision log.
 
 ## Documentation rule
