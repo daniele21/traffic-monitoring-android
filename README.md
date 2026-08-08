@@ -23,6 +23,39 @@ The first implementation will validate:
 
 No production analytics UI should be built until this feasibility gate is passed.
 
+## Local debug and Play internal testing
+
+The repository includes the same local-first Android workflow used by `android-local-llm-harness`:
+
+```bash
+# list configured Android emulators
+bash scripts/run-emulator-debug.sh --list-avds
+
+# build/install/launch the debug app on a running emulator
+bash scripts/run-emulator-debug.sh
+
+# or start a named AVD and launch the app
+bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35 --logs
+```
+
+Debug builds use `com.daniele21.trafficmonitoring.debug`, so they can coexist with the release/Play application ID.
+
+Release signing is local-only. Create the private Play upload key once, store its password in macOS Keychain, then generate the signed AAB:
+
+```bash
+bash scripts/build-play-release.sh create-key
+bash scripts/build-play-release.sh setup
+bash scripts/build-play-release.sh build
+```
+
+For a later Play upload, increment `versionCode` and build in one command:
+
+```bash
+bash scripts/build-play-release.sh build-next
+```
+
+CI also publishes an intentionally unsigned release AAB that can be downloaded and signed only on the developer Mac. See [`docs/local-development-and-release.md`](docs/local-development-and-release.md) for the complete workflow and security rules.
+
 ## Preferred experiment direction
 
 The primary hypothesis is an **event-driven** architecture rather than continuous polling:
@@ -76,6 +109,7 @@ Start with [`AGENTS.md`](AGENTS.md), then read only the document relevant to the
 - [`docs/data-and-export.md`](docs/data-and-export.md) — local schema and validation export format.
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) — milestone order and acceptance gates.
 - [`docs/testing.md`](docs/testing.md) — scripted real-device validation matrix.
+- [`docs/local-development-and-release.md`](docs/local-development-and-release.md) — emulator debug, upload-key management and signed AAB generation.
 - [`docs/decisions.md`](docs/decisions.md) — architectural decision log.
 
 ## Initial technical direction
