@@ -20,6 +20,7 @@ class ValidationRepository(
     private val dao = database.validationDao()
     private val runMutex = Mutex()
     private val captureMutex = Mutex()
+    private var firstCaptureInProcess = true
 
     suspend fun ensureActiveRun(): ValidationRunEntity = runMutex.withLock {
         dao.activeRun()?.let { return@withLock it }
@@ -115,7 +116,7 @@ class ValidationRepository(
             observedAtWallClockMs = wallClockMs,
             observedAtElapsedRealtimeMs = elapsedRealtimeMs,
             bootGeneration = reading.bootGeneration,
-            source = source,
+            source = "traffic_stats_total",
             rxBytes = reading.rxBytes,
             txBytes = reading.txBytes,
             interfaceName = snapshot.interfaceNames,
@@ -129,7 +130,8 @@ class ValidationRepository(
             val previousEvent = previousCounter.eventId?.let { dao.networkEventById(it) }
             val result = CounterAttribution.between(
                 previous = previousCounter.toEvidence(previousEvent),
-                current = currentCounter.toEvidence(event)
+                current = currentCounter.toEvidence(event),
+                continuityBrokenReason = if (firstCaptureInProcess) "process_restart_boundary" else null
             )
             if (result != null) {
                 dao.insertAttributionInterval(
@@ -154,6 +156,7 @@ class ValidationRepository(
         }
 
         dao.insertCounterSnapshot(currentCounter)
+        firstCaptureInProcess = false
         event to snapshot
     }
 
@@ -216,6 +219,7 @@ class ValidationRepository(
 
     suspend fun clearAllAndStartFresh(): ValidationRunEntity = captureMutex.withLock {
         database.clearAllTables()
+        firstCaptureInProcess = true
         ensureActiveRun()
     }
 
