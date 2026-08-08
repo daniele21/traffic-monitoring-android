@@ -24,7 +24,8 @@ class AndroidTrafficCounterReader(context: Context) : TrafficCounterReader {
         return try {
             val rx = TrafficStats.getTotalRxBytes()
             val tx = TrafficStats.getTotalTxBytes()
-            if (rx == TrafficStats.UNSUPPORTED || tx == TrafficStats.UNSUPPORTED) {
+            val unsupported = TrafficStats.UNSUPPORTED.toLong()
+            if (rx == unsupported || tx == unsupported) {
                 TrafficCounterReading(
                     rxBytes = null,
                     txBytes = null,
