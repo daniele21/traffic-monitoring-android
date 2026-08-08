@@ -4,11 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.MaterialTheme
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.daniele21.trafficmonitoring.ui.ValidationScreen
 import com.daniele21.trafficmonitoring.ui.ValidationViewModel
+import com.daniele21.trafficmonitoring.ui.theme.TrafficMonitoringTheme
 
 class MainActivity : ComponentActivity() {
     private lateinit var validationViewModel: ValidationViewModel
@@ -26,11 +26,12 @@ class MainActivity : ComponentActivity() {
         validationViewModel = ViewModelProvider(this)[ValidationViewModel::class.java]
 
         setContent {
-            MaterialTheme {
+            TrafficMonitoringTheme {
                 val state = validationViewModel.state.collectAsStateWithLifecycle().value
                 ValidationScreen(
                     state = state,
                     onRefreshNetwork = validationViewModel::refreshNetwork,
+                    onArmBackground = validationViewModel::armBackgroundCapture,
                     onAddMarker = validationViewModel::addMarker,
                     onExport = { exportDocument.launch(validationViewModel.suggestedExportFilename()) },
                     onStartNewRun = validationViewModel::startNewRun,
