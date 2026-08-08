@@ -10,11 +10,6 @@ GRADLE_BIN="${GRADLE_HOME}/bin/gradle"
 ZIP_PATH="${BOOTSTRAP_ROOT}/gradle-${GRADLE_VERSION}-bin.zip"
 DOWNLOAD_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
 
-if [[ -x "${ROOT_DIR}/gradlew" ]]; then
-    echo "${ROOT_DIR}/gradlew"
-    exit 0
-fi
-
 if command -v gradle >/dev/null 2>&1; then
     command -v gradle
     exit 0
