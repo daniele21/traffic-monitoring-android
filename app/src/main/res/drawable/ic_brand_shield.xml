@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- Flat small-surface derivative of the approved dimensional shield. -->
+    <path
+        android:fillColor="#020D2C"
+        android:pathData="M256,24 C344,24 423,56 456,82 L438,322 C431,391 361,449 256,488 C151,449 81,391 74,322 L56,82 C89,56 168,24 256,24 Z"
+        android:strokeColor="#207CCE"
+        android:strokeWidth="10"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:fillColor="#0E2345"
+        android:pathData="M256,52 C331,52 396,77 426,98 L410,314 C404,365 349,414 256,452 C163,414 108,365 102,314 L86,98 C116,77 181,52 256,52 Z" />
+
+    <!-- Wi-Fi signal -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M112,180 C166,139 228,132 286,154"
+        android:strokeColor="#0DC1F9"
+        android:strokeWidth="26"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M122,232 C165,201 211,196 252,212"
+        android:strokeColor="#207CCE"
+        android:strokeWidth="24"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M137,282 C164,264 190,261 214,271"
+        android:strokeColor="#002996"
+        android:strokeWidth="22"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#207CCE"
+        android:pathData="M174,315 m-20,0 a20,20 0,1 0,40 0 a20,20 0,1 0,-40 0" />
+
+    <!-- Upward network trend -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M125,360 L218,275 L270,310 L355,218 L394,249"
+        android:strokeColor="#0DC1F9"
+        android:strokeWidth="24"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#0DC1F9"
+        android:pathData="M351,180 L421,205 L399,275 L381,244 L350,218 Z" />
+</vector>
