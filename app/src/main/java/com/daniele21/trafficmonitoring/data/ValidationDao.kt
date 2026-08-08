@@ -41,6 +41,18 @@ interface ValidationDao {
     @Query("SELECT * FROM manual_test_markers WHERE runId = :runId ORDER BY timestampWallClockMs DESC LIMIT :limit")
     suspend fun recentMarkers(runId: String, limit: Int = 50): List<ManualTestMarkerEntity>
 
+    @Query("SELECT * FROM counter_snapshots WHERE runId = :runId ORDER BY observedAtWallClockMs DESC LIMIT :limit")
+    suspend fun recentCounterSnapshots(runId: String, limit: Int = 20): List<CounterSnapshotEntity>
+
+    @Query("SELECT * FROM attribution_intervals WHERE runId = :runId ORDER BY endedAtMs DESC LIMIT :limit")
+    suspend fun recentAttributionIntervals(runId: String, limit: Int = 20): List<AttributionIntervalEntity>
+
+    @Query("SELECT * FROM counter_snapshots WHERE runId = :runId ORDER BY observedAtWallClockMs DESC LIMIT 1")
+    suspend fun latestCounterSnapshot(runId: String): CounterSnapshotEntity?
+
+    @Query("SELECT * FROM network_events WHERE id = :eventId LIMIT 1")
+    suspend fun networkEventById(eventId: String): NetworkEventEntity?
+
     @Query("SELECT * FROM network_events WHERE runId = :runId ORDER BY receivedAtWallClockMs ASC")
     suspend fun networkEventsForRun(runId: String): List<NetworkEventEntity>
 
