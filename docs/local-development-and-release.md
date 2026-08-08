@@ -12,7 +12,7 @@ The debug application ID is intentionally different from the release application
 
 ## Prerequisites
 
-Use JDK 17 and an Android SDK containing API 35, build-tools and platform-tools. CI and local bootstrap are pinned to Gradle 8.9.
+Use JDK 17 and an Android SDK containing API 35, build-tools and platform-tools.
 
 A typical macOS SDK is at:
 
@@ -26,14 +26,27 @@ If the SDK is elsewhere, either export `ANDROID_HOME` or create an ignored `loca
 sdk.dir=/absolute/path/to/Android/sdk
 ```
 
-**A global Gradle installation is not required.** The repository includes an executable `./gradlew` launcher. If Gradle is not already available, it downloads the Gradle 8.9 binary distribution into the ignored `.tooling/` directory, verifies the official SHA-256 checksum, and reuses that local copy on subsequent runs.
+**A global Gradle installation is not required.** The repository commits the standard Gradle Wrapper:
 
-The first local build can therefore take longer because it downloads Gradle once. Later builds do not repeat that download.
+```text
+gradlew
+gradlew.bat
+gradle/wrapper/gradle-wrapper.jar
+gradle/wrapper/gradle-wrapper.properties
+```
 
-You can verify the bootstrap independently with:
+The wrapper is pinned to Gradle 8.9 and the distribution SHA-256 is pinned in `gradle-wrapper.properties`. On the first invocation, Gradle downloads the verified distribution into the normal Gradle user cache (typically `~/.gradle/wrapper/dists`). Subsequent invocations reuse it.
+
+Verify the local build toolchain with:
 
 ```bash
 ./gradlew --version
+```
+
+If the executable bit was lost after copying the repository, restore it once:
+
+```bash
+chmod +x gradlew
 ```
 
 ## 1. Debug locally on an emulator
@@ -67,16 +80,16 @@ bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35 --logs
 To validate a clean first-run database/state:
 
 ```bash
-bash scripts/run-emulator-debug.sh --clear-data
+bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35 --clear-data
 ```
 
 The runner:
 
 - resolves the Android SDK and `adb`;
+- verifies that the committed Gradle Wrapper is present;
 - optionally starts the requested AVD;
 - waits for Android boot completion;
-- resolves `./gradlew` and self-bootstraps Gradle 8.9 when needed;
-- runs `:app:installDebug`;
+- runs `./gradlew :app:installDebug`;
 - launches `com.daniele21.trafficmonitoring.debug`;
 - optionally streams logcat for only that process.
 
@@ -151,13 +164,13 @@ For the first Play upload, build the current `versionCode` and `versionName` fro
 bash scripts/build-play-release.sh build
 ```
 
-The release helper uses the same self-bootstrapping `./gradlew`, so no global Gradle installation is needed for AAB builds either.
+The release helper uses the committed `./gradlew`, so no global Gradle installation is needed for AAB builds either.
 
 The script:
 
 1. retrieves the password from macOS Keychain;
 2. exports signing variables only for the build process lifetime;
-3. runs `:app:bundleRelease`;
+3. runs `./gradlew :app:bundleRelease`;
 4. verifies the resulting AAB signature with `jarsigner`;
 5. copies the final AAB to `dist/`;
 6. writes a SHA-256 checksum next to it.
