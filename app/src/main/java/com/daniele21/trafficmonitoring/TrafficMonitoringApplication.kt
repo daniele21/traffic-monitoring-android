@@ -6,6 +6,7 @@ import com.daniele21.trafficmonitoring.data.ValidationRepository
 import com.daniele21.trafficmonitoring.platform.AndroidNetworkContextReader
 import com.daniele21.trafficmonitoring.platform.AndroidTrafficCounterReader
 import com.daniele21.trafficmonitoring.platform.InProcessNetworkMonitor
+import com.daniele21.trafficmonitoring.platform.PendingIntentNetworkMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +28,10 @@ class TrafficMonitoringApplication : Application() {
         )
     }
 
+    val backgroundNetworkMonitor: PendingIntentNetworkMonitor by lazy {
+        PendingIntentNetworkMonitor(this)
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -34,11 +39,16 @@ class TrafficMonitoringApplication : Application() {
             runCatching { validationRepository.recordProcessStart() }
         }
 
+        // M1B live diagnostics remain useful while the process exists.
         inProcessNetworkMonitor = InProcessNetworkMonitor(
             context = this,
             repository = validationRepository,
             scope = applicationScope
         )
         inProcessNetworkMonitor.start()
+
+        // Do not automatically re-register the PendingIntent here. A process can be created solely
+        // to deliver that PendingIntent; re-registering during Application.onCreate could create a
+        // duplicate immediate onAvailable wake. UI start / boot / package replacement own arming.
     }
 }
