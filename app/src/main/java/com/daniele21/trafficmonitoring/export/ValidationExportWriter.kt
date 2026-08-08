@@ -122,7 +122,9 @@ class ValidationExportWriter {
             }
             .sortedByDescending { it.optLong("totalBytes") }
 
-        return JSONArray().also { array -> grouped.forEach(array::put) }
+        return JSONArray().also { array ->
+            grouped.forEach { value -> array.put(value) }
+        }
     }
 
     private fun networkEventsCsv(rows: List<NetworkEventEntity>): String = csv(
