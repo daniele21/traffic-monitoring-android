@@ -10,10 +10,12 @@ import com.daniele21.trafficmonitoring.data.CounterSnapshotEntity
 import com.daniele21.trafficmonitoring.data.ManualTestMarkerEntity
 import com.daniele21.trafficmonitoring.data.NetworkEventEntity
 import com.daniele21.trafficmonitoring.export.ValidationExporter
+import com.daniele21.trafficmonitoring.platform.BackgroundNetworkRegistrationStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class ValidationViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as TrafficMonitoringApplication
@@ -26,6 +28,7 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
     init {
         viewModelScope.launch {
             runCatching {
+                armBackgroundCaptureInternal("ui_start")
                 val (_, snapshot) = repository.captureNetworkSnapshot(source = "startup")
                 refreshDashboard(currentNetwork = snapshot.displayName)
             }.onFailure(::setError)
@@ -38,6 +41,20 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
             runCatching {
                 val (_, snapshot) = repository.captureNetworkSnapshot(source = "manual")
                 refreshDashboard(currentNetwork = snapshot.displayName)
+            }.onFailure(::setError)
+            setBusy(false)
+        }
+    }
+
+    fun armBackgroundCapture() {
+        viewModelScope.launch {
+            setBusy(true)
+            runCatching {
+                val status = armBackgroundCaptureInternal("manual_rearm")
+                refreshDashboard()
+                _state.value = _state.value.copy(
+                    message = if (status.registered) "Background capture armed" else "Background capture not armed"
+                )
             }.onFailure(::setError)
             setBusy(false)
         }
@@ -60,6 +77,7 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
             setBusy(true)
             runCatching {
                 repository.startNewRun()
+                armBackgroundCaptureInternal("new_validation_run")
                 val (_, snapshot) = repository.captureNetworkSnapshot(source = "startup")
                 refreshDashboard(currentNetwork = snapshot.displayName)
                 _state.value = _state.value.copy(message = "New validation run started")
@@ -74,6 +92,7 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
             runCatching {
                 repository.clearAllAndStartFresh()
                 repository.recordProcessStart()
+                armBackgroundCaptureInternal("clear_and_restart")
                 val (_, snapshot) = repository.captureNetworkSnapshot(source = "startup")
                 refreshDashboard(currentNetwork = snapshot.displayName)
                 _state.value = _state.value.copy(message = "Local validation data cleared")
@@ -88,6 +107,7 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
             setBusy(true)
             runCatching {
                 exporter.exportRun(runId, destination)
+                refreshDashboard()
                 _state.value = _state.value.copy(message = "Validation ZIP exported")
             }.onFailure(::setError)
             setBusy(false)
@@ -108,8 +128,35 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
         _state.value = _state.value.copy(message = null, error = null)
     }
 
+    private suspend fun armBackgroundCaptureInternal(reason: String): BackgroundNetworkRegistrationStatus {
+        val result = app.backgroundNetworkMonitor.register(reason)
+        val status = app.backgroundNetworkMonitor.status()
+        result.onSuccess {
+            repository.recordLifecycle(
+                kind = "pending_intent_registered",
+                detailsJson = JSONObject()
+                    .put("registrationVersion", status.registrationVersion)
+                    .put("registeredAtMs", status.registeredAtMs)
+                    .put("reason", reason)
+                    .toString()
+            )
+        }.onFailure { error ->
+            repository.recordLifecycle(
+                kind = "pending_intent_registration_failed",
+                detailsJson = JSONObject()
+                    .put("registrationVersion", status.registrationVersion)
+                    .put("reason", reason)
+                    .put("error", error::class.java.simpleName)
+                    .put("message", error.message)
+                    .toString()
+            )
+        }
+        return result.getOrThrow()
+    }
+
     private suspend fun refreshDashboard(currentNetwork: String = _state.value.currentNetwork) {
         val dashboard = repository.loadDashboard()
+        val background = app.backgroundNetworkMonitor.status()
         _state.value = _state.value.copy(
             isLoading = false,
             runId = dashboard.run.id,
@@ -120,6 +167,14 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
             latestCounter = dashboard.recentCounters.firstOrNull(),
             recentIntervals = dashboard.recentIntervals,
             callbackEventCount = dashboard.recentEvents.count { it.source == "callback" },
+            pendingIntentEventCount = dashboard.recentEvents.count { it.source == "pending_intent" },
+            backgroundRegistered = background.registered,
+            backgroundRegisteredAtMs = background.registeredAtMs,
+            backgroundRegistrationVersion = background.registrationVersion,
+            backgroundWakeCount = background.wakeCount,
+            lastBackgroundWakeAtMs = background.lastWakeAtMs,
+            lastBackgroundWakeNetworkHandle = background.lastWakeNetworkHandle,
+            backgroundError = background.lastError,
             error = null
         )
     }
@@ -146,6 +201,14 @@ data class ValidationUiState(
     val latestCounter: CounterSnapshotEntity? = null,
     val recentIntervals: List<AttributionIntervalEntity> = emptyList(),
     val callbackEventCount: Int = 0,
+    val pendingIntentEventCount: Int = 0,
+    val backgroundRegistered: Boolean = false,
+    val backgroundRegisteredAtMs: Long? = null,
+    val backgroundRegistrationVersion: Int = 1,
+    val backgroundWakeCount: Int = 0,
+    val lastBackgroundWakeAtMs: Long? = null,
+    val lastBackgroundWakeNetworkHandle: String? = null,
+    val backgroundError: String? = null,
     val message: String? = null,
     val error: String? = null
 )
