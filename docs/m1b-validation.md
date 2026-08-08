@@ -48,6 +48,8 @@ Use a fresh run:
 bash scripts/run-emulator-debug.sh --clear-data --logs
 ```
 
+`--clear-data` must print `App data clear confirmed: Success`. The helper exits with an error if Android does not confirm the clear, so a supposedly fresh run can no longer silently retain prior validation data.
+
 In the app:
 
 1. confirm the screen says `M1B`;
@@ -67,12 +69,14 @@ Expected ZIP:
 ## B. Controlled download on emulator
 
 1. press **Start known download**;
-2. generate a known amount of network traffic in the emulator;
+2. generate a known amount of network traffic **inside the emulator** rather than on the host Mac;
 3. press **End known download**;
 4. press **Capture evidence** once more;
 5. export.
 
 Evaluate the counter delta between the start/end marker evidence. RX should increase by a plausible amount relative to the transfer; exact equality is not expected because these are device-wide network counters.
+
+A start/end marker pair with identical counters is an inconclusive transfer test, not a counter failure: it proves that no counted device traffic occurred between those two evidence points.
 
 ## C. In-process transition signal
 
@@ -114,6 +118,27 @@ reason = clock_discontinuity
 rxBytes = null
 txBytes = null
 ```
+
+## First M1B emulator evidence — 2026-08-08
+
+Export `traffic-monitoring-validation-2026-08-08T17-25-35.564Z.zip` demonstrated the core M1B invariants:
+
+- 44 network events, including 26 in-process callback events;
+- 36 counter snapshots and 35 attribution intervals;
+- one boot generation (`boot:8`) with monotonically increasing RX/TX and no counter reset;
+- deliberate Wi-Fi → offline → cellular → Wi-Fi callback sequence was observed;
+- network-change deltas stayed `unattributed`;
+- a process restart produced one `discarded/process_restart_boundary` interval with no bytes assigned;
+- all evidence IDs were unique and all counter/attribution evidence references resolved to existing network events;
+- first-to-last cumulative counter movement was RX +50,614 bytes and TX +30,498 bytes = 81,112 bytes total;
+- attributed accounting reconciled exactly: 7,943 inferred + 71,287 unattributed + 1,882 hidden behind the intentionally discarded restart boundary = 81,112 bytes.
+
+Two formal gate items remained open in that export:
+
+1. the active validation run had originated under M1A, so the ZIP included earlier M1A lifecycle/network evidence instead of representing a fresh M1B-only run;
+2. the `START_KNOWN_DOWNLOAD` and `END_KNOWN_DOWNLOAD` marker snapshots had identical counters (RX 15,474,025; TX 1,774,817), so the controlled-transfer accuracy check was not exercised.
+
+The debug launcher was subsequently hardened so `--clear-data` can no longer ignore an unsuccessful `pm clear`. Export creation also writes an `export_created` lifecycle event containing the current build version, while the run keeps its original start-version metadata.
 
 ## F. First physical-device run
 
