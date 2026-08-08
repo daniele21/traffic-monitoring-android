@@ -6,6 +6,7 @@ import com.daniele21.trafficmonitoring.data.LifecycleEventEntity
 import com.daniele21.trafficmonitoring.data.ManualTestMarkerEntity
 import com.daniele21.trafficmonitoring.data.NetworkEventEntity
 import com.daniele21.trafficmonitoring.data.ValidationExportBundle
+import com.daniele21.trafficmonitoring.platform.BackgroundNetworkRegistrationStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.OutputStream
@@ -46,7 +47,9 @@ class ValidationExportWriter {
         .put(
             "configuration",
             JSONObject()
-                .put("backgroundStrategy", "m1b_in_process_network_callback")
+                .put("backgroundStrategy", "m1c_pending_intent_plus_in_process")
+                .put("pendingIntentRegistrationVersion", BackgroundNetworkRegistrationStore.REGISTRATION_VERSION)
+                .put("pendingIntentApi", "ConnectivityManager.registerNetworkCallback(NetworkRequest, PendingIntent)")
                 .put("counterSource", "TrafficStats.getTotalRxBytes/getTotalTxBytes")
                 .put("counterScope", "device_all_interfaces_since_boot")
                 .put("recoveryCadenceHours", JSONObject.NULL)
@@ -88,6 +91,8 @@ class ValidationExportWriter {
             .put("counterSnapshotCount", bundle.counterSnapshots.size)
             .put("attributionIntervalCount", bundle.attributionIntervals.size)
             .put("pendingIntentWakeCount", bundle.networkEvents.count { it.source == "pending_intent" })
+            .put("pendingIntentRegistrationCount", bundle.lifecycleEvents.count { it.kind == "pending_intent_registered" })
+            .put("pendingIntentRegistrationFailureCount", bundle.lifecycleEvents.count { it.kind == "pending_intent_registration_failed" })
             .put("inProcessEventCount", bundle.networkEvents.count { it.source == "callback" })
             .put("recoveryWorkerCount", bundle.lifecycleEvents.count { it.kind == "recovery_worker_started" })
             .put("processStartCount", processStarts)
@@ -122,9 +127,7 @@ class ValidationExportWriter {
             }
             .sortedByDescending { it.optLong("totalBytes") }
 
-        return JSONArray().also { array ->
-            grouped.forEach { value -> array.put(value) }
-        }
+        return JSONArray().also { array -> grouped.forEach { value -> array.put(value) } }
     }
 
     private fun networkEventsCsv(rows: List<NetworkEventEntity>): String = csv(
@@ -204,20 +207,23 @@ class ValidationExportWriter {
         =================================================
 
         Run ID: ${bundle.run.id}
-        App version: ${bundle.run.appVersion}
+        App version at run start: ${bundle.run.appVersion}
         Started: ${iso(bundle.run.startedAtMs)}
 
-        M1B records three kinds of evidence:
-        - network-events.csv: manual/startup observations plus ConnectivityManager callbacks while the process is alive;
-        - counter-snapshots.csv: device-wide TrafficStats cumulative RX/TX counters since boot;
-        - attribution-intervals.csv: conservative deltas derived between adjacent pieces of evidence.
+        M1C records four evidence paths:
+        - network-events.csv: startup/manual observations;
+        - source=callback: live default-network callbacks while the process exists;
+        - source=pending_intent: ConnectivityManager PendingIntent availability wakes that may outlive the UI process;
+        - counter-snapshots.csv / attribution-intervals.csv: cumulative TrafficStats evidence and conservative deltas.
 
-        M1B never calls an interval confirmed. A stable observed network can only be inferred. Network changes,
-        VPN ambiguity and continuity gaps remain unattributed, while reboot/counter/clock discontinuities are
-        discarded rather than converted into synthetic usage. M1C will test network events after process death.
+        A PendingIntent wake proves only that Android delivered network-availability evidence at that timestamp. It does
+        not by itself prove every loss/boundary is observable. M1C compares deliberate transitions against the exported
+        event timeline before deciding whether this background strategy is sufficient.
 
-        No packet contents, destinations, DNS queries, account identifiers or device hardware identifiers
-        are collected by this export.
+        Continuity gaps, process restarts, VPN ambiguity, reboots, resets and clock discontinuities are never silently
+        converted into confident network usage.
+
+        No packet contents, destinations, DNS queries, account identifiers or device hardware identifiers are collected.
     """.trimIndent() + "\n"
 
     internal fun csv(header: List<String>, rows: List<List<Any?>>): String = buildString {
