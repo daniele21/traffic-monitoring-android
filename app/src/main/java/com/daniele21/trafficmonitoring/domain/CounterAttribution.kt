@@ -37,11 +37,19 @@ data class AttributionResult(
 object CounterAttribution {
     const val CLOCK_DISCONTINUITY_TOLERANCE_MS = 30_000L
 
-    fun between(previous: AttributionEvidence, current: AttributionEvidence): AttributionResult? {
+    fun between(
+        previous: AttributionEvidence,
+        current: AttributionEvidence,
+        continuityBrokenReason: String? = null
+    ): AttributionResult? {
         val previousRx = previous.rxBytes ?: return null
         val previousTx = previous.txBytes ?: return null
         val currentRx = current.rxBytes ?: return null
         val currentTx = current.txBytes ?: return null
+
+        if (continuityBrokenReason != null) {
+            return discarded(previous, current, continuityBrokenReason)
+        }
 
         if (current.elapsedRealtimeMs <= previous.elapsedRealtimeMs) {
             return discarded(previous, current, "non_monotonic_elapsed_realtime")
