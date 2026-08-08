@@ -21,6 +21,7 @@ Read only the documents needed for the task:
 | Local schema / export bundle | `docs/data-and-export.md` |
 | Implementation order / current milestone | `docs/implementation-plan.md` |
 | Real-device validation | `docs/testing.md` |
+| Local emulator debugging / Play release signing | `docs/local-development-and-release.md` |
 | Why key choices were made | `docs/decisions.md` |
 | Documentation map only | `docs/README.md` |
 
