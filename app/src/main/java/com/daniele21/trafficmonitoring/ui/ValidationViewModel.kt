@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.daniele21.trafficmonitoring.TrafficMonitoringApplication
+import com.daniele21.trafficmonitoring.data.AttributionIntervalEntity
+import com.daniele21.trafficmonitoring.data.CounterSnapshotEntity
 import com.daniele21.trafficmonitoring.data.ManualTestMarkerEntity
 import com.daniele21.trafficmonitoring.data.NetworkEventEntity
 import com.daniele21.trafficmonitoring.export.ValidationExporter
@@ -24,7 +26,6 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
     init {
         viewModelScope.launch {
             runCatching {
-                repository.recordProcessStart()
                 val (_, snapshot) = repository.captureNetworkSnapshot(source = "startup")
                 refreshDashboard(currentNetwork = snapshot.displayName)
             }.onFailure(::setError)
@@ -116,6 +117,9 @@ class ValidationViewModel(application: Application) : AndroidViewModel(applicati
             currentNetwork = currentNetwork,
             recentEvents = dashboard.recentEvents,
             recentMarkers = dashboard.recentMarkers,
+            latestCounter = dashboard.recentCounters.firstOrNull(),
+            recentIntervals = dashboard.recentIntervals,
+            callbackEventCount = dashboard.recentEvents.count { it.source == "callback" },
             error = null
         )
     }
@@ -139,6 +143,9 @@ data class ValidationUiState(
     val currentNetwork: String = "Reading network…",
     val recentEvents: List<NetworkEventEntity> = emptyList(),
     val recentMarkers: List<ManualTestMarkerEntity> = emptyList(),
+    val latestCounter: CounterSnapshotEntity? = null,
+    val recentIntervals: List<AttributionIntervalEntity> = emptyList(),
+    val callbackEventCount: Int = 0,
     val message: String? = null,
     val error: String? = null
 )
