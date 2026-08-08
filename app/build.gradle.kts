@@ -49,7 +49,7 @@ val versionProperties = Properties().apply {
     }
 }
 val currentVersionCode = (versionProperties.getProperty("versionCode") ?: "1").toInt()
-val currentVersionName = versionProperties.getProperty("versionName") ?: "0.1.0-m1a"
+val currentVersionName = versionProperties.getProperty("versionName") ?: "0.1.0-m1b"
 
 android {
     namespace = "com.daniele21.trafficmonitoring"
