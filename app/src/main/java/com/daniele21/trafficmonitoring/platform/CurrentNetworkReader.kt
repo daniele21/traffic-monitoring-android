@@ -1,0 +1,99 @@
+package com.daniele21.trafficmonitoring.platform
+
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiInfo
+import org.json.JSONObject
+
+interface NetworkContextReader {
+    fun readCurrent(): NetworkContextSnapshot
+}
+
+data class NetworkContextSnapshot(
+    val networkHandle: String?,
+    val transportSet: String,
+    val isValidated: Boolean?,
+    val isMetered: Boolean?,
+    val isNotVpn: Boolean?,
+    val vpnPresent: Boolean?,
+    val ssid: String?,
+    val ssidAvailability: String,
+    val interfaceNames: String?,
+    val displayName: String,
+    val rawSummaryJson: String
+)
+
+class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
+    private val connectivityManager =
+        context.applicationContext.getSystemService(ConnectivityManager::class.java)
+
+    override fun readCurrent(): NetworkContextSnapshot {
+        val network = connectivityManager.activeNetwork
+            ?: return NetworkContextSnapshot(
+                networkHandle = null,
+                transportSet = "offline",
+                isValidated = false,
+                isMetered = null,
+                isNotVpn = null,
+                vpnPresent = false,
+                ssid = null,
+                ssidAvailability = "unavailable",
+                interfaceNames = null,
+                displayName = "Offline",
+                rawSummaryJson = "{\"state\":\"offline\"}"
+            )
+
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+        val transports = capabilities?.let(::transportNames).orEmpty()
+        val vpnPresent = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+        val wifiInfo = capabilities?.transportInfo as? WifiInfo
+        val rawSsid = wifiInfo?.ssid
+        val ssid = rawSsid
+            ?.takeUnless { it == WifiInfo.UNKNOWN_SSID || it == "<unknown ssid>" }
+            ?.trim('"')
+            ?.takeIf { it.isNotBlank() }
+        val interfaceName = connectivityManager.getLinkProperties(network)?.interfaceName
+
+        val displayName = when {
+            ssid != null -> ssid
+            "wifi" in transports -> "Wi-Fi · name unavailable"
+            "cellular" in transports -> "Cellular"
+            "ethernet" in transports -> "Ethernet"
+            vpnPresent -> "VPN"
+            transports.isNotEmpty() -> transports.joinToString(" + ")
+            else -> "Connected network"
+        }
+
+        val raw = JSONObject()
+            .put("networkHandle", network.networkHandle.toString())
+            .put("transports", transports)
+            .put("validated", capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
+            .put("metered", connectivityManager.isActiveNetworkMetered)
+            .put("vpnPresent", vpnPresent)
+            .put("interfaceName", interfaceName)
+            .toString()
+
+        return NetworkContextSnapshot(
+            networkHandle = network.networkHandle.toString(),
+            transportSet = if (transports.isEmpty()) "unknown" else transports.joinToString("|"),
+            isValidated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+            isMetered = connectivityManager.isActiveNetworkMetered,
+            isNotVpn = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN),
+            vpnPresent = vpnPresent,
+            ssid = ssid,
+            ssidAvailability = if (ssid != null) "known" else "unavailable",
+            interfaceNames = interfaceName,
+            displayName = displayName,
+            rawSummaryJson = raw
+        )
+    }
+
+    private fun transportNames(capabilities: NetworkCapabilities): List<String> = buildList {
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) add("wifi")
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) add("cellular")
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) add("ethernet")
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) add("vpn")
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH)) add("bluetooth")
+    }
+}
