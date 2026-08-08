@@ -28,64 +28,55 @@ Gate:
 
 # M1A — Minimal Android validation app
 
-**Status: implementation complete; emulator persistence/export gate passed on 2026-08-08.**
+**Status: complete; emulator persistence/export gate passed on 2026-08-08.**
 
-The validation app proved the evidence pipeline before measurement complexity was added.
+Delivered and validated:
 
-Delivered:
-
-- Kotlin Android project;
-- Jetpack Compose single validation screen;
-- Room database;
+- Kotlin/Compose Android project;
+- Room validation database;
 - `ValidationRun` lifecycle;
-- current network/context snapshot;
+- current network/context snapshots;
 - manual test markers;
-- recent raw-event list;
-- **Export validation run** producing the documented ZIP bundle;
+- raw-event lists;
+- export ZIP contract;
 - reset/start-new-run flow;
-- unit tests for the export contract and CSV serialization.
+- export serialization tests.
 
-Validated export run:
-
-```text
-runId: 065b1000-3bc5-4c64-bfbb-64303e30cf57
-appVersion: 0.1.0-m1a-debug
-device: Android emulator, SDK 36
-process starts: 3
-manual markers: 2
-network observations: 7
-```
-
-The same run survived process relaunches, both manual markers were preserved, exported IDs were coherent, and the future counter/attribution CSVs were present with stable headers.
-
-The run also exposed an important timing case: wall clock advanced by roughly 52 minutes while `elapsedRealtime` advanced by only roughly 22 seconds, consistent with an emulator freeze/suspension. This is now an explicit attribution discontinuity: such gaps must be discarded rather than assigned to a network.
-
-Physical-device behavior is not considered proven by M1A. It is tested together with the actual counters and callbacks in M1B/M1C, where device/OEM behavior matters.
-
-Important ordering choice:
-
-> Export comes before complex background behavior.
-
-Every subsequent experiment is already observable.
+The M1A export also exposed an emulator freeze/suspension case where wall clock and `elapsedRealtime` diverged materially. Such gaps are now explicitly discarded rather than assigned to a network.
 
 # M1B — Counter and in-process network spike
 
-**Status: current implementation milestone.**
+**Status: complete; emulator gate passed on 2026-08-08.**
 
-Implement platform adapters while keeping the app process alive. M1B is deliberately conservative: it validates counters and event boundaries but does not claim background survival.
+Delivered:
 
-Deliverables:
-
-- `TrafficCounterReader` using `TrafficStats.getTotalRxBytes()` / `getTotalTxBytes()`;
-- boot-generation capture;
-- `NetworkContextReader` using `ConnectivityManager` / `NetworkCapabilities` / `WifiInfo`;
-- process-wide regular `NetworkCallback` diagnostic stream;
-- serialized `NetworkEvent` + `CounterSnapshot` persistence;
-- deterministic attribution between adjacent evidence;
-- wall-clock vs `elapsedRealtime` continuity check;
+- `TrafficStats.getTotalRxBytes()` / `getTotalTxBytes()` cumulative device counters;
+- boot-generation evidence;
+- `ConnectivityManager` / `NetworkCapabilities` network context;
+- process-wide default `NetworkCallback` diagnostics;
+- `NetworkEvent` + `CounterSnapshot` persistence;
+- deterministic adjacent-evidence attribution;
+- wall-clock vs `elapsedRealtime` continuity checks;
 - counter-regression / boot-change rejection;
 - VPN ambiguity kept unattributed;
-- M1B evidence visible in the validation UI and existing ZIP export.
+- counter/attribution evidence in UI and export.
+
+Final clean emulator evidence:
+
+```text
+appVersion: 0.1.0-m1b-debug
+network events: 12
+in-process callback events: 8
+counter snapshots: 12
+attribution intervals: 11
+controlled payload: 10 MiB
+controlled RX delta: 11,869,535 B
+first-to-last total counter movement: 12,397,857 B
+exported interval reconciliation: 12,397,857 B
+result: PASS
+```
+
+Earlier M1B evidence separately validated conservative handling of Wi-Fi → offline → cellular → Wi-Fi boundaries and ordinary process restart gaps.
 
 M1B confidence policy:
 
@@ -94,57 +85,55 @@ same observed network + valid continuity -> inferred
 network boundary / unknown identity       -> unattributed
 VPN ambiguity                             -> unattributed
 clock discontinuity / reboot / reset      -> discarded
+process restart                           -> discarded
 confirmed                                 -> not emitted by M1B
 ```
 
-Tests:
-
-- known-size download/upload;
-- Wi-Fi A → Wi-Fi B;
-- Wi-Fi → cellular → Wi-Fi;
-- SSID permission allowed/denied;
-- VPN on/off;
-- reboot;
-- emulator clock/suspension discontinuity fixture.
-
-Gate:
-
-- counter source is monotonic/plausible on the test device;
-- `counter-snapshots.csv` is populated;
-- `attribution-intervals.csv` reconciles with accepted counter deltas;
-- no synthetic deltas across reboot/reset/clock discontinuity;
-- callback events appear while the process exists;
-- network identity is observable enough for the intended Wi-Fi grouping.
+Physical-device behavior remains part of the broader M1C/M1E field work.
 
 # M1C — PendingIntent background event spike
 
-Implement the preferred low-power background candidate.
+**Status: implementation complete; process-absent validation is the active gate.**
 
-Deliverables:
+Implemented:
 
-- manifest `BroadcastReceiver`;
-- stable PendingIntent registration;
-- `registerNetworkCallback(NetworkRequest, PendingIntent)`;
-- re-registration on appropriate lifecycle/boot paths;
-- event-source metadata proving whether a boundary came from PendingIntent vs live callback;
-- bounded receiver execution;
-- durable baseline updates;
-- export fields for registration/version/status.
+- manifest `BackgroundNetworkReceiver`;
+- stable explicit mutable PendingIntent used only where ConnectivityManager needs to fill documented extras;
+- `registerNetworkCallback(NetworkRequest, PendingIntent)` registration;
+- durable registration/wake status in SharedPreferences;
+- UI-start registration plus boot/package-replacement re-registration;
+- targeted `EXTRA_NETWORK` context capture;
+- `source=pending_intent` network events;
+- bounded receiver execution using `goAsync()` + IO coroutine;
+- registration/wake lifecycle evidence;
+- M1C metadata and counts in validation export;
+- branded M1C validation UI;
+- repeatable process-absent test protocol in `m1c-validation.md`.
+
+Important API constraint:
+
+> The PendingIntent delivery corresponds to matching network **availability**. M1C does not assume every loss event wakes the app.
 
 Critical test:
 
-1. arm validation run;
-2. leave the app UI;
-3. allow process to become absent if Android chooses;
-4. deliberately switch networks;
-5. reopen only much later;
-6. verify the export shows boundary events at the actual switch timestamps, not merely when the app was reopened.
+1. arm a fresh validation run;
+2. move the UI to background;
+3. terminate the ordinary background process without force-stop;
+4. create a new matching network availability;
+5. wait before reopening the UI;
+6. export;
+7. verify `source=pending_intent` evidence exists at the transition time rather than only at UI reopen.
 
 Gate:
 
-- prove whether this API produces sufficient background transition evidence for the product.
+- prove whether availability wakes after ordinary process death are delivered reliably enough and close enough to the real boundary to support the product;
+- quantify which loss-only boundaries remain invisible;
+- confirm registration survives ordinary process death and can be restored after reboot/update;
+- no process gap may silently create confident network usage.
 
 # M1D — Recovery and lifecycle hardening
+
+**Status: blocked on M1C evidence.**
 
 Deliverables:
 
@@ -264,7 +253,7 @@ Desired product semantics can mirror the macOS app:
 - peak periods;
 - explicit unattributed usage when present.
 
-Use direct user-facing terminology, not counter jargon.
+Use the approved product language from `brand-kit.md`: direct labels such as **Downloaded**, **Uploaded**, **Current network**, **Usage by network** and **Peak usage**, not counter jargon.
 
 # M5 — Reliability across devices/OEMs
 
