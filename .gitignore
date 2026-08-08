@@ -8,6 +8,7 @@ app/build/
 captures/
 .externalNativeBuild/
 .cxx/
+.tooling/
 dist/
 *.apk
 *.aab
