@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/java17-env.sh"
+
 APP_ID="com.daniele21.trafficmonitoring.debug"
 ACTIVITY_CLASS="com.daniele21.trafficmonitoring.MainActivity"
 GRADLE="${ROOT_DIR}/gradlew"
@@ -264,12 +266,15 @@ if [[ -z "$DEVICE_SERIAL" ]]; then
     DEVICE_SERIAL="$(wait_for_avd "$AVD_NAME")"
 fi
 
+configure_jdk17
 ADB_CMD=("$ADB" -s "$DEVICE_SERIAL")
 
 echo "Device      : $DEVICE_SERIAL"
 if [[ -n "$AVD_NAME" ]]; then
     echo "AVD         : $AVD_NAME"
 fi
+echo "Java home   : $JAVA_HOME"
+echo "Java        : $("$JAVA_HOME/bin/java" -version 2>&1 | head -n 1)"
 echo "App ID      : $APP_ID"
 
 echo "Building and installing debug app..."
