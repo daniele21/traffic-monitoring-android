@@ -2,6 +2,7 @@ package com.daniele21.trafficmonitoring.export
 
 import android.content.Context
 import android.net.Uri
+import com.daniele21.trafficmonitoring.BuildConfig
 import com.daniele21.trafficmonitoring.data.ValidationRepository
 import java.time.Instant
 
@@ -11,6 +12,10 @@ class ValidationExporter(
     private val writer: ValidationExportWriter = ValidationExportWriter()
 ) {
     suspend fun exportRun(runId: String, destination: Uri) {
+        repository.recordLifecycle(
+            kind = "export_created",
+            detailsJson = "{\"version\":\"${BuildConfig.VERSION_NAME}\"}"
+        )
         val bundle = repository.loadExportBundle(runId)
         val output = requireNotNull(context.contentResolver.openOutputStream(destination)) {
             "Unable to open export destination"
