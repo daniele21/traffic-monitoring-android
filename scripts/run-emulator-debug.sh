@@ -17,7 +17,7 @@ Usage:
 
 Options:
   --device SERIAL       Specific ADB device/emulator serial.
-  --avd NAME            Start this AVD if no matching emulator is already online.
+  --avd NAME            Use/start this Android Virtual Device.
   --adb PATH            Custom absolute path to adb.
   --clear-data          Clear the debug app data before launching.
   --logs                Follow logcat for the debug app after launch.
@@ -28,14 +28,14 @@ Examples:
   # Build, install and launch on the first running emulator/device
   bash scripts/run-emulator-debug.sh
 
-  # Start a named AVD, then build/install/launch
+  # Use an already-running named AVD, or start it if needed
   bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35
 
   # Launch and stream only this app's logs
   bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35 --logs
 
   # Re-test first-run behavior with a clean local database
-  bash scripts/run-emulator-debug.sh --clear-data
+  bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35 --clear-data
 EOF
 }
 
@@ -162,11 +162,28 @@ online_devices() {
     "$ADB" devices | awk 'NR > 1 && $2 == "device" { print $1 }'
 }
 
-wait_for_emulator() {
+running_avd_serial() {
+    local wanted="$1"
+    local serial=""
+    local name=""
+
+    for serial in $(online_devices | grep '^emulator-' || true); do
+        name="$($ADB -s "$serial" emu avd name 2>/dev/null | head -n 1 | tr -d '\r' || true)"
+        if [[ "$name" == "$wanted" ]]; then
+            echo "$serial"
+            return
+        fi
+    done
+    return 1
+}
+
+wait_for_avd() {
+    local wanted="$1"
     local waited=0
     local serial=""
+
     while [[ $waited -lt 180 ]]; do
-        serial="$(online_devices | grep '^emulator-' | head -n 1 || true)"
+        serial="$(running_avd_serial "$wanted" || true)"
         if [[ -n "$serial" ]]; then
             local booted
             booted="$($ADB -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
@@ -179,7 +196,7 @@ wait_for_emulator() {
         waited=$((waited + 2))
     done
 
-    echo "Error: emulator did not finish booting within 180 seconds." >&2
+    echo "Error: AVD '$wanted' did not finish booting within 180 seconds." >&2
     exit 1
 }
 
@@ -207,6 +224,8 @@ if [[ -n "$DEVICE_SERIAL" ]]; then
         echo "Error: requested device '$DEVICE_SERIAL' is not online." >&2
         exit 1
     fi
+elif [[ -n "$AVD_NAME" ]]; then
+    DEVICE_SERIAL="$(running_avd_serial "$AVD_NAME" || true)"
 else
     DEVICE_SERIAL="$(online_devices | head -n 1 || true)"
 fi
@@ -238,13 +257,16 @@ if [[ -z "$DEVICE_SERIAL" ]]; then
     echo "Starting AVD: $AVD_NAME"
     nohup "$EMULATOR" -avd "$AVD_NAME" -netdelay none -netspeed full \
         > "$ROOT_DIR/build/emulator-$AVD_NAME.log" 2>&1 &
-    DEVICE_SERIAL="$(wait_for_emulator)"
+    DEVICE_SERIAL="$(wait_for_avd "$AVD_NAME")"
 fi
 
 ADB_CMD=("$ADB" -s "$DEVICE_SERIAL")
 GRADLE="$(resolve_gradle)"
 
 echo "Device      : $DEVICE_SERIAL"
+if [[ -n "$AVD_NAME" ]]; then
+    echo "AVD         : $AVD_NAME"
+fi
 echo "Gradle      : $GRADLE"
 echo "App ID      : $APP_ID"
 
