@@ -9,6 +9,7 @@ DEFAULT_KEY_ALIAS="traffic-monitoring-upload"
 DEFAULT_UNSIGNED_AAB="${ROOT_DIR}/traffic-monitoring-release-unsigned.aab"
 DEFAULT_SIGNED_AAB="${ROOT_DIR}/dist/traffic-monitoring-ci-signed.aab"
 VERSION_FILE="${ROOT_DIR}/app/version.properties"
+GRADLE="${ROOT_DIR}/gradlew"
 
 usage() {
     cat <<'EOF'
@@ -44,6 +45,23 @@ EOF
 require_macos_keychain() {
     if [[ "$(uname -s)" != "Darwin" ]] || ! command -v security >/dev/null 2>&1; then
         echo "This helper requires macOS Keychain ('security' command)." >&2
+        exit 1
+    fi
+}
+
+require_gradle_wrapper() {
+    if [[ ! -f "$GRADLE" ]]; then
+        echo "Gradle wrapper not found at $GRADLE." >&2
+        echo "Pull the latest repository branch before building." >&2
+        exit 1
+    fi
+    if [[ ! -x "$GRADLE" ]]; then
+        echo "Gradle wrapper is not executable at $GRADLE." >&2
+        echo "Run: chmod +x gradlew" >&2
+        exit 1
+    fi
+    if [[ ! -f "$ROOT_DIR/gradle/wrapper/gradle-wrapper.jar" ]]; then
+        echo "gradle/wrapper/gradle-wrapper.jar is missing." >&2
         exit 1
     fi
 }
@@ -164,21 +182,6 @@ configure_android_sdk() {
     exit 1
 }
 
-resolve_gradle() {
-    if [[ -x "$ROOT_DIR/gradlew" ]]; then
-        echo "$ROOT_DIR/gradlew"
-        return
-    fi
-    if command -v gradle >/dev/null 2>&1; then
-        command -v gradle
-        return
-    fi
-
-    echo "Gradle not found. CI currently uses Gradle 8.9." >&2
-    echo "Install Gradle locally or add a Gradle wrapper before building." >&2
-    exit 1
-}
-
 load_signing_configuration() {
     STORE_FILE="$(store_file)"
     KEY_ALIAS="$(key_alias)"
@@ -269,11 +272,10 @@ build_release() {
     load_signing_configuration
     verify_keystore_password >/dev/null
     configure_android_sdk
-    local gradle
-    gradle="$(resolve_gradle)"
+    require_gradle_wrapper
 
     cd "$ROOT_DIR"
-    "$gradle" :app:bundleRelease --stacktrace
+    "$GRADLE" :app:bundleRelease --stacktrace
 
     local source_aab="$ROOT_DIR/app/build/outputs/bundle/release/app-release.aab"
     if [[ ! -f "$source_aab" ]]; then
