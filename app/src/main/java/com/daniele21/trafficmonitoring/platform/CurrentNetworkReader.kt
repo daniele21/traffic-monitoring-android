@@ -50,7 +50,7 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
         val wifiInfo = capabilities?.transportInfo as? WifiInfo
         val rawSsid = wifiInfo?.ssid
         val ssid = rawSsid
-            ?.takeUnless { it == WifiInfo.UNKNOWN_SSID || it == "<unknown ssid>" }
+            ?.takeUnless { it.equals("<unknown ssid>", ignoreCase = true) }
             ?.trim('"')
             ?.takeIf { it.isNotBlank() }
         val interfaceName = connectivityManager.getLinkProperties(network)?.interfaceName
