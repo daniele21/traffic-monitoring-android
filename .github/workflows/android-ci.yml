@@ -37,6 +37,9 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Validate helper scripts
+        run: bash -n scripts/run-emulator-debug.sh scripts/build-play-release.sh
+
       - name: Unit tests
         run: gradle :app:testDebugUnitTest --stacktrace
 
