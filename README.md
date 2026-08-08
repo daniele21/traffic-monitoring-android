@@ -1,46 +1,155 @@
+<p align="center">
+  <img src="docs/assets/traffic-monitoring-lockup.svg" alt="Traffic Monitoring" width="720" />
+</p>
+
+<p align="center"><strong>Know your network usage.</strong><br/>See how much data you use, when you use it, and on which network.</p>
+
 # Traffic Monitoring Android
 
 Android feasibility and validation project for low-power, privacy-first network-usage attribution.
 
-The goal is to answer a deceptively simple question:
+The product goal is simple to state:
 
 > How much data did this Android device use on each Wi-Fi / hotspot / mobile network?
 
-The project starts deliberately as a **measurement spike**, not as a polished consumer app. Before building dashboards, we must prove that Android can reliably detect network boundaries in the background and associate device traffic deltas with the correct network without requiring high-frequency polling.
+The repository deliberately proves the measurement model before building the full analytics product. When attribution is uncertain, bytes remain **unattributed / uncertain** instead of being confidently assigned to the wrong network.
 
 ## Current phase
 
-**M1 — Background measurement feasibility.**
+**M1C — PendingIntent background event spike.**
 
-The first implementation will validate:
+Completed gates:
 
-- whether network changes can wake the app reliably while its UI/process is not active;
-- whether Android traffic counters are suitable for monotonic delta measurement;
-- whether Wi-Fi identities can be read with acceptable permissions;
-- whether VPN, reboot, Doze, Battery Saver and OEM process management create attribution gaps;
-- how much battery/background activity the approach causes;
-- whether a Foreground Service is actually necessary.
+- **M1A:** Room persistence, lifecycle evidence, manual markers and ZIP export validated on emulator;
+- **M1B:** device-wide cumulative `TrafficStats` counters + in-process `ConnectivityManager.NetworkCallback` validated on emulator, including a controlled 10 MiB transfer and exact interval/counter reconciliation;
+- **M1C:** implementation is now present; process-absent background delivery is the active validation gate.
 
-No production analytics UI should be built until this feasibility gate is passed.
+M1C uses:
 
-## Local debug and Play internal testing
-
-The repository includes the same local-first Android workflow used by `android-local-llm-harness`:
-
-```bash
-# list configured Android emulators
-bash scripts/run-emulator-debug.sh --list-avds
-
-# build/install/launch the debug app on a running emulator
-bash scripts/run-emulator-debug.sh
-
-# or start a named AVD and launch the app
-bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35 --logs
+```text
+registerNetworkCallback(NetworkRequest, PendingIntent)
+        ↓
+manifest BroadcastReceiver
+        ↓
+source=pending_intent network evidence
++ TrafficStats counter snapshot
+        ↓
+Room → validation ZIP
 ```
 
-Debug builds use `com.daniele21.trafficmonitoring.debug`, so they can coexist with the release/Play application ID.
+Android documents that the PendingIntent request may outlive the calling application and is delivered when a matching network becomes **available**. M1C measures whether those availability events are sufficient for the product; it does not assume loss events are delivered.
 
-Release signing is local-only. Create the private Play upload key once, store its password in macOS Keychain, then generate the signed AAB:
+See [`docs/m1c-validation.md`](docs/m1c-validation.md) for the exact test protocol.
+
+## Brand system
+
+The Android application now follows the approved Traffic Monitoring shield brand direction:
+
+- Midnight `#020D2C` and Deep Navy `#0E2345` for high-trust framing;
+- Royal Blue `#002996` for primary action/selection;
+- Network Blue `#207CCE` for supporting network emphasis;
+- Signal Cyan `#0DC1F9` for live/background status;
+- semantic green/amber/red reserved only for state;
+- flat, restrained UI even though the shield identity can feel more dimensional.
+
+The product language also follows the brand kit: **Current network**, **Downloaded**, **Uploaded**, **Total used**, **Usage by network**, **Peak usage**. Raw counter terminology stays in diagnostics.
+
+See [`docs/brand-kit.md`](docs/brand-kit.md).
+
+## Local emulator debug
+
+The repository includes a standard Gradle Wrapper and a local-first emulator workflow:
+
+```bash
+# list configured AVDs
+bash scripts/run-emulator-debug.sh --list-avds
+
+# build/install/launch on the first online emulator/device
+bash scripts/run-emulator-debug.sh
+
+# clean validation run on a named emulator
+bash scripts/run-emulator-debug.sh --avd Pixel_8_API_35 --clear-data --logs
+```
+
+Debug builds use:
+
+```text
+com.daniele21.trafficmonitoring.debug
+```
+
+so debug and Play/release builds can coexist.
+
+## M1C quick test
+
+Start fresh:
+
+```bash
+git checkout agent/m1a-validation-app
+git pull origin agent/m1a-validation-app
+bash scripts/run-emulator-debug.sh --clear-data
+```
+
+Confirm **Background capture = Armed**, put the app in the background, then kill the ordinary background process — **not force-stop**:
+
+```bash
+adb shell am kill com.daniele21.trafficmonitoring.debug
+sleep 2
+adb shell pidof com.daniele21.trafficmonitoring.debug || true
+```
+
+Create a new Wi-Fi availability event:
+
+```bash
+adb shell svc wifi disable
+sleep 8
+date -u '+%Y-%m-%dT%H:%M:%SZ'
+adb shell svc wifi enable
+sleep 12
+```
+
+Reopen without clearing data:
+
+```bash
+bash scripts/run-emulator-debug.sh
+```
+
+Export the validation ZIP. The decisive evidence is a `network-events.csv` row with:
+
+```text
+source=pending_intent
+kind=available
+```
+
+at a timestamp near the deliberate network availability, not merely when the UI is reopened.
+
+Full protocol: [`docs/m1c-validation.md`](docs/m1c-validation.md).
+
+## Validation evidence
+
+Every experiment is auditable through the same local ZIP bundle:
+
+- `network-events.csv`
+- `counter-snapshots.csv`
+- `attribution-intervals.csv`
+- `lifecycle-events.csv`
+- `manual-markers.csv`
+- `manifest.json`
+- `summary.json`
+- `README.txt`
+
+M1C distinguishes event source explicitly:
+
+```text
+manual / startup
+callback        = in-process NetworkCallback
+pending_intent  = background PendingIntent receiver
+```
+
+The export never contains packet contents, destinations, DNS queries, account identifiers or hardware identifiers.
+
+## Play internal testing / signed AAB
+
+Release signing stays local-only. Create the upload key once, store its password in macOS Keychain, then build a signed AAB:
 
 ```bash
 bash scripts/build-play-release.sh create-key
@@ -48,84 +157,45 @@ bash scripts/build-play-release.sh setup
 bash scripts/build-play-release.sh build
 ```
 
-For a later Play upload, increment `versionCode` and build in one command:
+For a subsequent Play upload:
 
 ```bash
 bash scripts/build-play-release.sh build-next
 ```
 
-CI also publishes an intentionally unsigned release AAB that can be downloaded and signed only on the developer Mac. See [`docs/local-development-and-release.md`](docs/local-development-and-release.md) for the complete workflow and security rules.
-
-## Preferred experiment direction
-
-The primary hypothesis is an **event-driven** architecture rather than continuous polling:
-
-```text
-Android network change
-        ↓
-ConnectivityManager network event
-        ↓
-read traffic counters + current network context
-        ↓
-close previous attribution interval
-        ↓
-open new network baseline
-        ↓
-local Room database
-```
-
-The first candidate to validate is `ConnectivityManager.registerNetworkCallback(NetworkRequest, PendingIntent)`. Android documents that this request may outlive the calling application, making it potentially suitable for waking a broadcast receiver on relevant network availability changes without a permanent foreground service.
-
-A low-frequency recovery worker (hours, not seconds/minutes) will be evaluated as a safety net, not as the primary attribution mechanism.
-
-## Validation export is a first-class feature
-
-The spike is not useful unless its behavior can be inspected after hours or days with the screen off.
-
-The app therefore must support exporting a local validation bundle containing, at minimum:
-
-- observed network events;
-- traffic counter snapshots;
-- derived attribution intervals;
-- app/process lifecycle events;
-- recovery-worker executions;
-- manual test markers entered by the tester;
-- permission/background-mode state;
-- device/app metadata required to interpret the run.
-
-The export must make it possible to compare **what the tester intentionally did** with **what the app actually observed**.
-
-See [`docs/data-and-export.md`](docs/data-and-export.md) and [`docs/testing.md`](docs/testing.md).
+CI publishes an intentionally unsigned release AAB that can be signed only on the developer machine. See [`docs/local-development-and-release.md`](docs/local-development-and-release.md).
 
 ## Documentation
 
-Start with [`AGENTS.md`](AGENTS.md), then read only the document relevant to the current task.
-
+- [`AGENTS.md`](AGENTS.md) — implementation-agent entry point.
 - [`docs/README.md`](docs/README.md) — documentation map.
+- [`docs/brand-kit.md`](docs/brand-kit.md) — approved brand rules applied to Android.
 - [`docs/product-spec.md`](docs/product-spec.md) — problem, scope and success criteria.
 - [`docs/architecture.md`](docs/architecture.md) — components and runtime data flow.
-- [`docs/measurement-engine.md`](docs/measurement-engine.md) — counters, network identity and attribution boundaries.
-- [`docs/background-strategy.md`](docs/background-strategy.md) — background execution candidates and escalation path.
-- [`docs/data-and-export.md`](docs/data-and-export.md) — local schema and validation export format.
-- [`docs/implementation-plan.md`](docs/implementation-plan.md) — milestone order and acceptance gates.
-- [`docs/testing.md`](docs/testing.md) — scripted real-device validation matrix.
-- [`docs/local-development-and-release.md`](docs/local-development-and-release.md) — emulator debug, upload-key management and signed AAB generation.
-- [`docs/decisions.md`](docs/decisions.md) — architectural decision log.
+- [`docs/measurement-engine.md`](docs/measurement-engine.md) — counters, identity and attribution boundaries.
+- [`docs/background-strategy.md`](docs/background-strategy.md) — execution candidates and escalation path.
+- [`docs/data-and-export.md`](docs/data-and-export.md) — evidence schema/export contract.
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — milestone gates.
+- [`docs/testing.md`](docs/testing.md) — broader field validation matrix.
+- [`docs/m1b-validation.md`](docs/m1b-validation.md) — completed M1B evidence and protocol.
+- [`docs/m1c-validation.md`](docs/m1c-validation.md) — active process-absent PendingIntent test.
+- [`docs/local-development-and-release.md`](docs/local-development-and-release.md) — emulator and release workflow.
+- [`docs/decisions.md`](docs/decisions.md) — architectural decisions.
 
-## Initial technical direction
+## Technical direction
 
-- Kotlin.
-- Jetpack Compose for the minimal validation UI.
-- Room / SQLite for durable local logs.
+- Kotlin + Jetpack Compose.
+- Room / SQLite, entirely local.
 - `ConnectivityManager` / `NetworkCapabilities` for network context.
-- `WifiInfo` for connected Wi-Fi metadata when permission allows it.
-- `TrafficStats` as a low-cost counter source to validate.
-- `NetworkStatsManager` as a reference/reconciliation source where Usage Access is granted; not assumed to provide per-SSID history.
-- WorkManager only for coarse recovery/liveness checks.
-- No packet capture, VPN-based interception, accessibility service, root, or cloud backend.
+- `WifiInfo` when Android exposes Wi-Fi identity under the current permission state.
+- `TrafficStats` for low-cost cumulative device counters.
+- in-process `NetworkCallback` for diagnostics while alive.
+- `registerNetworkCallback(NetworkRequest, PendingIntent)` as the first background candidate.
+- WorkManager only later as a coarse recovery/liveness safety net.
+- no packet capture, VPN interception, accessibility service, root or cloud backend.
 
-## Product principle
+## Feasibility rule
 
-When attribution is uncertain, record the bytes as **unattributed / uncertain** rather than assigning them to the wrong network.
+Do not add a permanent Foreground Service just because it is the easiest way to keep code alive.
 
-A missing interval is visible and debuggable. A confidently wrong Wi-Fi total is not.
+First prove whether the standard event-driven Android path is reliable enough. If it is not, quantify the gap and only then run the explicit Foreground Service A/B fallback experiment.
