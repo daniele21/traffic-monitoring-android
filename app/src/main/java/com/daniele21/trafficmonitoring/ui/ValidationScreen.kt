@@ -1,5 +1,6 @@
 package com.daniele21.trafficmonitoring.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,11 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -28,11 +32,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.daniele21.trafficmonitoring.R
 import com.daniele21.trafficmonitoring.data.AttributionIntervalEntity
 import com.daniele21.trafficmonitoring.data.ManualTestMarkerEntity
 import com.daniele21.trafficmonitoring.data.NetworkEventEntity
+import com.daniele21.trafficmonitoring.ui.theme.SignalCyan
 import java.time.Instant
 import java.util.Locale
 
@@ -40,6 +47,7 @@ import java.util.Locale
 fun ValidationScreen(
     state: ValidationUiState,
     onRefreshNetwork: () -> Unit,
+    onArmBackground: () -> Unit,
     onAddMarker: (type: String, label: String, notes: String?) -> Unit,
     onExport: () -> Unit,
     onStartNewRun: () -> Unit,
@@ -53,36 +61,32 @@ fun ValidationScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Traffic Monitoring",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = "Android validation · M1B",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
+            BrandHeader()
             StatusCard(state)
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = onRefreshNetwork, enabled = !state.isLoading) {
                     Text("Capture evidence")
                 }
-                Button(onClick = onExport, enabled = !state.isLoading && state.runId != null) {
-                    Text("Export validation run")
+                OutlinedButton(onClick = onArmBackground, enabled = !state.isLoading) {
+                    Text("Re-arm background")
                 }
             }
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onExport,
+                enabled = !state.isLoading && state.runId != null
+            ) {
+                Text("Export validation run")
+            }
 
-            Text("Manual test markers", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Use these immediately before or after a deliberate action. Every marker also captures the current network and cumulative device counters.",
-                style = MaterialTheme.typography.bodySmall
+            SectionTitle(
+                title = "Manual test markers",
+                subtitle = "Mark deliberate actions. Each marker also captures current network context and cumulative device usage."
             )
-
             MarkerButton(
                 text = "Switching network",
                 enabled = !state.isLoading,
@@ -103,53 +107,51 @@ fun ValidationScreen(
                 enabled = !state.isLoading,
                 onClick = { onAddMarker("END_KNOWN_DOWNLOAD", "End known download", null) }
             )
-            OutlinedButton(onClick = { customMarkerOpen = true }, enabled = !state.isLoading) {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { customMarkerOpen = true },
+                enabled = !state.isLoading
+            ) {
                 Text("Add custom marker")
             }
 
             HorizontalDivider()
-
-            Text("Recent attribution intervals", style = MaterialTheme.typography.titleMedium)
+            SectionTitle("Recent attribution intervals")
             if (state.recentIntervals.isEmpty()) {
-                Text("Capture at least two pieces of evidence to create an interval.", style = MaterialTheme.typography.bodySmall)
+                MutedText("Capture at least two pieces of evidence to create an interval.")
             } else {
                 state.recentIntervals.take(8).forEach { AttributionRow(it) }
             }
 
             HorizontalDivider()
-
-            Text("Recent network observations", style = MaterialTheme.typography.titleMedium)
+            SectionTitle("Recent network observations")
             if (state.recentEvents.isEmpty()) {
-                Text("No observations yet.", style = MaterialTheme.typography.bodySmall)
+                MutedText("No observations yet.")
             } else {
                 state.recentEvents.take(12).forEach { EventRow(it) }
             }
 
             HorizontalDivider()
-
-            Text("Recent markers", style = MaterialTheme.typography.titleMedium)
+            SectionTitle("Recent markers")
             if (state.recentMarkers.isEmpty()) {
-                Text("No markers yet.", style = MaterialTheme.typography.bodySmall)
+                MutedText("No markers yet.")
             } else {
                 state.recentMarkers.take(12).forEach { MarkerRow(it) }
             }
 
             HorizontalDivider()
-
-            Text("Validation run", style = MaterialTheme.typography.titleMedium)
+            SectionTitle(
+                title = "Validation run",
+                subtitle = "M1C tests whether Android can deliver network-availability evidence after the UI process is absent, without a permanent foreground service."
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onClick = onStartNewRun, enabled = !state.isLoading) {
                     Text("Start new run")
                 }
                 TextButton(onClick = { clearConfirmationOpen = true }, enabled = !state.isLoading) {
-                    Text("Clear all local data")
+                    Text("Clear local data")
                 }
             }
-
-            Text(
-                "M1B uses device-wide TrafficStats counters and an in-process ConnectivityManager callback. It does not yet claim that network changes are captured after Android kills the process; that is the M1C experiment.",
-                style = MaterialTheme.typography.bodySmall
-            )
 
             Spacer(Modifier.height(20.dp))
         }
@@ -184,53 +186,93 @@ fun ValidationScreen(
 }
 
 @Composable
+private fun BrandHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_brand_shield),
+            contentDescription = "Traffic Monitoring shield",
+            modifier = Modifier.size(54.dp)
+        )
+        Column {
+            Text(
+                text = "Traffic Monitoring",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Android validation · M1C",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun StatusCard(state: ValidationUiState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text("Current network", style = MaterialTheme.typography.labelLarge)
             Text(
                 state.currentNetwork,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
             )
 
             val counter = state.latestCounter
             if (counter != null) {
-                Text("Device counters since boot", style = MaterialTheme.typography.labelLarge)
-                if (counter.status == "ok" || counter.status == "reset") {
-                    Text(
-                        "↓ ${formatBytes(counter.rxBytes)}   ↑ ${formatBytes(counter.txBytes)}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                } else {
-                    Text(
-                        "Counter status: ${counter.status}${counter.errorCode?.let { " · $it" }.orEmpty()}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(22.dp)
+                ) {
+                    Metric("Downloaded", formatBytes(counter.rxBytes))
+                    Metric("Uploaded", formatBytes(counter.txBytes))
                 }
-                Text(
-                    "${counter.bootGeneration} · ${counter.source}",
-                    style = MaterialTheme.typography.bodySmall
+                MutedText("Device totals since boot · ${counter.bootGeneration}")
+            }
+
+            HorizontalDivider()
+
+            Text("Background capture", style = MaterialTheme.typography.labelLarge)
+            Text(
+                if (state.backgroundRegistered) "Armed" else "Not armed",
+                color = if (state.backgroundRegistered) SignalCyan else MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium
+            )
+            MutedText(
+                "PendingIntent wakes: ${state.backgroundWakeCount} · recent stored events: ${state.pendingIntentEventCount}"
+            )
+            state.lastBackgroundWakeAtMs?.let { wakeAt ->
+                MutedText(
+                    "Last wake ${formatTime(wakeAt)}${state.lastBackgroundWakeNetworkHandle?.let { " · network $it" }.orEmpty()}"
                 )
             }
+            state.backgroundRegisteredAtMs?.let { registeredAt ->
+                MutedText("Registration v${state.backgroundRegistrationVersion} · armed ${formatTime(registeredAt)}")
+            }
+            state.backgroundError?.let { Text("Registration error: $it", color = MaterialTheme.colorScheme.error) }
 
-            Text(
-                "In-process callback events in recent evidence: ${state.callbackEventCount}",
-                style = MaterialTheme.typography.bodySmall
-            )
+            MutedText("In-process callback events in recent evidence: ${state.callbackEventCount}")
 
             val runText = state.runId?.let { "Run ${it.take(8)}…" } ?: "Preparing validation run…"
-            Text(runText, style = MaterialTheme.typography.bodySmall)
-            state.runStartedAtMs?.let {
-                Text("Started ${formatTime(it)}", style = MaterialTheme.typography.bodySmall)
-            }
+            MutedText(runText)
+            state.runStartedAtMs?.let { MutedText("Started ${formatTime(it)}") }
 
             if (state.isLoading) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.height(18.dp))
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
                     Text("  Saving locally…", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -240,6 +282,31 @@ private fun StatusCard(state: ValidationUiState) {
             }
         }
     }
+}
+
+@Composable
+private fun Metric(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun SectionTitle(title: String, subtitle: String? = null) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        subtitle?.let { MutedText(it) }
+    }
+}
+
+@Composable
+private fun MutedText(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable
@@ -257,7 +324,7 @@ private fun MarkerButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 private fun AttributionRow(interval: AttributionIntervalEntity) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         val bytes = if (interval.rxBytes != null || interval.txBytes != null) {
-            "↓ ${formatBytes(interval.rxBytes)} · ↑ ${formatBytes(interval.txBytes)}"
+            "Downloaded ${formatBytes(interval.rxBytes)} · Uploaded ${formatBytes(interval.txBytes)}"
         } else {
             "bytes discarded"
         }
@@ -266,10 +333,7 @@ private fun AttributionRow(interval: AttributionIntervalEntity) {
             fontWeight = FontWeight.Medium,
             style = MaterialTheme.typography.bodyMedium
         )
-        Text(
-            "${interval.networkDisplayName ?: interval.transport} · $bytes · ${interval.reason}",
-            style = MaterialTheme.typography.bodySmall
-        )
+        MutedText("${interval.networkDisplayName ?: interval.transport} · $bytes · ${interval.reason}")
     }
 }
 
@@ -282,10 +346,7 @@ private fun EventRow(event: NetworkEventEntity) {
             style = MaterialTheme.typography.bodyMedium
         )
         val network = event.ssid ?: if (event.transportSet.contains("wifi")) "Wi-Fi name unavailable" else event.transportSet
-        Text(
-            "$network · ${event.source}/${event.kind}",
-            style = MaterialTheme.typography.bodySmall
-        )
+        MutedText("$network · ${event.source}/${event.kind}")
     }
 }
 
@@ -297,10 +358,7 @@ private fun MarkerRow(marker: ManualTestMarkerEntity) {
             fontWeight = FontWeight.Medium,
             style = MaterialTheme.typography.bodyMedium
         )
-        Text(
-            marker.currentObservedNetwork ?: "Network unavailable",
-            style = MaterialTheme.typography.bodySmall
-        )
+        MutedText(marker.currentObservedNetwork ?: "Network unavailable")
     }
 }
 
