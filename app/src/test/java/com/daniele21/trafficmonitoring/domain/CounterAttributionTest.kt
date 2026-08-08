@@ -28,8 +28,22 @@ class CounterAttributionTest {
 
         assertEquals("unattributed", result.confidence)
         assertEquals("network_changed_between_evidence", result.reason)
-        assertEquals(null, result.networkIdentity)
+        assertNull(result.networkIdentity)
         assertEquals(2_500L, result.rxBytes)
+    }
+
+    @Test
+    fun `process restart boundary is discarded even on same network`() {
+        val result = CounterAttribution.between(
+            previous = evidence(wall = 1_000, elapsed = 1_000, rx = 10_000, tx = 5_000),
+            current = evidence(wall = 6_000, elapsed = 6_000, rx = 12_500, tx = 5_700),
+            continuityBrokenReason = "process_restart_boundary"
+        )!!
+
+        assertEquals("discarded", result.confidence)
+        assertEquals("process_restart_boundary", result.reason)
+        assertNull(result.rxBytes)
+        assertNull(result.txBytes)
     }
 
     @Test
