@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_ID="com.daniele21.trafficmonitoring.debug"
 ACTIVITY_CLASS="com.daniele21.trafficmonitoring.MainActivity"
+GRADLE="${ROOT_DIR}/gradlew"
 DEVICE_SERIAL=""
 AVD_NAME=""
 SHOW_LOGS="false"
@@ -142,20 +143,21 @@ resolve_emulator() {
     return 1
 }
 
-resolve_gradle() {
-    if [[ -x "$ROOT_DIR/gradlew" ]]; then
-        echo "$ROOT_DIR/gradlew"
-        return
+require_gradle_wrapper() {
+    if [[ ! -f "$GRADLE" ]]; then
+        echo "Error: Gradle wrapper is missing: $GRADLE" >&2
+        echo "Pull the latest repository branch before running local builds." >&2
+        exit 1
     fi
-    if command -v gradle >/dev/null 2>&1; then
-        command -v gradle
-        return
+    if [[ ! -x "$GRADLE" ]]; then
+        echo "Error: Gradle wrapper is not executable: $GRADLE" >&2
+        echo "Run: chmod +x gradlew" >&2
+        exit 1
     fi
-
-    echo "Error: Gradle not found." >&2
-    echo "This repository currently uses system Gradle 8.9 in CI." >&2
-    echo "Install Gradle locally (for example with Homebrew) or add a Gradle wrapper." >&2
-    exit 1
+    if [[ ! -f "$ROOT_DIR/gradle/wrapper/gradle-wrapper.jar" ]]; then
+        echo "Error: gradle/wrapper/gradle-wrapper.jar is missing." >&2
+        exit 1
+    fi
 }
 
 online_devices() {
@@ -201,6 +203,7 @@ wait_for_avd() {
 }
 
 configure_android_sdk
+require_gradle_wrapper
 ADB="$(resolve_adb)"
 EMULATOR="$(resolve_emulator || true)"
 
@@ -218,6 +221,7 @@ echo "  Traffic Monitoring Android — Emulator Debug"
 echo "===================================================="
 echo "Android SDK : $ANDROID_HOME"
 echo "ADB         : $ADB"
+echo "Gradle      : $GRADLE"
 
 if [[ -n "$DEVICE_SERIAL" ]]; then
     if ! online_devices | grep -qx "$DEVICE_SERIAL"; then
@@ -261,13 +265,11 @@ if [[ -z "$DEVICE_SERIAL" ]]; then
 fi
 
 ADB_CMD=("$ADB" -s "$DEVICE_SERIAL")
-GRADLE="$(resolve_gradle)"
 
 echo "Device      : $DEVICE_SERIAL"
 if [[ -n "$AVD_NAME" ]]; then
     echo "AVD         : $AVD_NAME"
 fi
-echo "Gradle      : $GRADLE"
 echo "App ID      : $APP_ID"
 
 echo "Building and installing debug app..."
