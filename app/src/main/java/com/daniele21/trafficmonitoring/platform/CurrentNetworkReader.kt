@@ -47,6 +47,7 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
     private val connectivityManager = appContext.getSystemService(ConnectivityManager::class.java)
     private val locationManager = appContext.getSystemService(LocationManager::class.java)
     private val wifiManager = appContext.getSystemService(WifiManager::class.java)
+    private val identityPreferences = WifiIdentityPreferenceStore(appContext)
 
     override fun readCurrent(): NetworkContextSnapshot {
         val network = connectivityManager.activeNetwork ?: return offlineSnapshot()
@@ -67,28 +68,33 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
         val transports = capabilities?.let(::transportNames).orEmpty()
         val vpnPresent = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
         val isWifi = "wifi" in transports
+        val identityEnabled = identityPreferences.isEnabled()
         val preciseLocationGranted = ContextCompat.checkSelfPermission(
             appContext,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
         val locationEnabled = runCatching { locationManager.isLocationEnabled }.getOrDefault(true)
 
-        // getNetworkCapabilities() intentionally strips location-sensitive WifiInfo fields.
-        // Use its transport info when already available, then fall back to the connected WifiInfo
-        // after Android's location permission/toggle prerequisites have been satisfied.
-        val capabilitySsid = normalizeSsid((capabilities?.transportInfo as? WifiInfo)?.ssid)
-        val connectedSsid = if (
-            isWifi &&
-            isActiveNetwork &&
-            preciseLocationGranted &&
-            locationEnabled
-        ) {
-            @Suppress("DEPRECATION")
-            normalizeSsid(runCatching { wifiManager.connectionInfo?.ssid }.getOrNull())
+        // SSID is deliberately opt-in. Even if the app already has an old location grant, do not
+        // touch location-sensitive Wi-Fi identity fields unless the user explicitly enabled names.
+        val ssid = if (identityEnabled && isWifi) {
+            // getNetworkCapabilities() strips location-sensitive WifiInfo fields on modern Android,
+            // but keep this first lookup for platform/version compatibility.
+            val capabilitySsid = normalizeSsid((capabilities?.transportInfo as? WifiInfo)?.ssid)
+            val connectedSsid = if (
+                isActiveNetwork &&
+                preciseLocationGranted &&
+                locationEnabled
+            ) {
+                @Suppress("DEPRECATION")
+                normalizeSsid(runCatching { wifiManager.connectionInfo?.ssid }.getOrNull())
+            } else {
+                null
+            }
+            capabilitySsid ?: connectedSsid
         } else {
             null
         }
-        val ssid = capabilitySsid ?: connectedSsid
 
         val interfaceName = connectivityManager.getLinkProperties(network)?.interfaceName
         val isMetered = capabilities?.let {
@@ -96,6 +102,7 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
         }
         val ssidAvailability = WifiIdentityAccess.resolve(
             isWifi = isWifi,
+            identityEnabled = identityEnabled,
             ssidKnown = ssid != null,
             preciseLocationGranted = preciseLocationGranted,
             locationEnabled = locationEnabled
@@ -119,6 +126,7 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
             .put("vpnPresent", vpnPresent)
             .put("interfaceName", interfaceName)
             .put("isActiveNetworkAtObservation", isActiveNetwork)
+            .put("wifiIdentityOptIn", identityEnabled)
             .put("ssidAvailability", ssidAvailability)
             .toString()
 
