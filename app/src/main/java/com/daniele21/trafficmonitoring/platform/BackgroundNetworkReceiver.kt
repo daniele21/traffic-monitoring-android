@@ -7,6 +7,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Build
 import com.daniele21.trafficmonitoring.TrafficMonitoringApplication
+import com.daniele21.trafficmonitoring.background.RecoveryScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,8 +15,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 /**
- * Manifest receiver used by the M1C PendingIntent experiment and for re-registration after reboot
- * or app replacement. Work is bounded to a small Room write and TrafficStats/network-context read.
+ * Manifest receiver used by the PendingIntent experiment and for re-registration after reboot
+ * or app replacement. Work is bounded to small local writes and counter/network-context reads.
  */
 class BackgroundNetworkReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -51,6 +52,7 @@ class BackgroundNetworkReceiver : BroadcastReceiver() {
                     }
 
                     Intent.ACTION_BOOT_COMPLETED -> {
+                        RecoveryScheduler.schedule(appContext)
                         app.validationRepository.recordLifecycle("boot_received")
                         app.backgroundNetworkMonitor.register("boot_completed")
                             .onSuccess { status ->
@@ -68,6 +70,8 @@ class BackgroundNetworkReceiver : BroadcastReceiver() {
                     }
 
                     Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                        RecoveryScheduler.schedule(appContext)
+                        app.validationRepository.recordLifecycle("package_replaced")
                         app.backgroundNetworkMonitor.register("package_replaced")
                             .onSuccess { status ->
                                 app.validationRepository.recordLifecycle(
