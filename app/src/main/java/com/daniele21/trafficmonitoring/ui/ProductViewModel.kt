@@ -84,14 +84,15 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                         unattributedTxBytes = unattributed?.txBytes ?: 0L,
                         intervals = evidenceIntervals
                     )
-                    val currentNetwork = app.validationRepository.currentNetworkSnapshot().displayName
+                    val currentNetworkSnapshot = app.validationRepository.currentNetworkSnapshot()
                     val monitoring = app.backgroundNetworkMonitor.status()
                     ProductUiState(
                         isLoading = false,
                         timeframe = timeframe,
                         customStartMs = currentState.customStartMs,
                         customEndExclusiveMs = currentState.customEndExclusiveMs,
-                        currentNetwork = currentNetwork,
+                        currentNetwork = currentNetworkSnapshot.displayName,
+                        wifiIdentityStatus = currentNetworkSnapshot.ssidAvailability,
                         monitoringHealthy = monitoring.registered && monitoring.lastError == null,
                         downloadedBytes = snapshot.rxBytes,
                         uploadedBytes = snapshot.txBytes,
@@ -142,6 +143,7 @@ data class ProductUiState(
     val customStartMs: Long? = null,
     val customEndExclusiveMs: Long? = null,
     val currentNetwork: String = "Checking…",
+    val wifiIdentityStatus: String = "unknown",
     val monitoringHealthy: Boolean = true,
     val downloadedBytes: Long = 0L,
     val uploadedBytes: Long = 0L,
