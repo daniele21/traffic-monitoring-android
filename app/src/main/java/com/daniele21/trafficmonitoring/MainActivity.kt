@@ -28,8 +28,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val wifiIdentityPermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
+    private val wifiIdentityPermissions = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
     ) {
         if (::productViewModel.isInitialized) productViewModel.refresh()
         if (::validationViewModel.isInitialized) validationViewModel.refreshNetwork()
@@ -80,13 +80,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestWifiIdentityAccess() {
-        val granted = ContextCompat.checkSelfPermission(
+        val preciseGranted = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
-        if (!granted) {
-            wifiIdentityPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (!preciseGranted) {
+            wifiIdentityPermissions.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            )
         } else {
             startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         }
