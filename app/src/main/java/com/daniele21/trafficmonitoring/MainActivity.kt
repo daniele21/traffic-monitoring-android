@@ -3,6 +3,7 @@ package com.daniele21.trafficmonitoring
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -11,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.daniele21.trafficmonitoring.platform.WifiIdentityPreferenceStore
 import com.daniele21.trafficmonitoring.ui.ProductViewModel
 import com.daniele21.trafficmonitoring.ui.TrafficMonitoringRoot
 import com.daniele21.trafficmonitoring.ui.ValidationViewModel
@@ -80,6 +82,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestWifiIdentityAccess() {
+        // Exact SSID access is a separate, optional product preference. Turning this on is the
+        // user's explicit consent to touch Android's location-sensitive Wi-Fi identity fields.
+        WifiIdentityPreferenceStore(this).setEnabled(true)
+
         val preciseGranted = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -92,8 +98,15 @@ class MainActivity : ComponentActivity() {
                     Manifest.permission.ACCESS_FINE_LOCATION
                 )
             )
-        } else {
+            return
+        }
+
+        val locationManager = getSystemService(LocationManager::class.java)
+        if (!locationManager.isLocationEnabled) {
             startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+        } else {
+            productViewModel.refresh()
+            validationViewModel.refreshNetwork()
         }
     }
 }
