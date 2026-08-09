@@ -1,6 +1,7 @@
 package com.daniele21.trafficmonitoring.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -48,7 +48,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
-import androidx.compose.foundation.Image
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,13 +67,8 @@ import kotlin.math.roundToInt
 private enum class DashboardSection { OVERVIEW, NETWORKS, EVIDENCE }
 
 /**
- * Consumer-facing E1 dashboard.
- *
- * Product hierarchy follows the evidence-first mission:
- * 1. What happened?      -> usage total + trend
- * 2. Where?              -> network breakdown
- * 3. How trustworthy?    -> evidence coverage + health
- * 4. How was it measured -> Monitor, deliberately behind advanced diagnostics
+ * Consumer hierarchy follows the evidence-first mission:
+ * what happened -> when -> where -> how trustworthy -> raw Monitor only when requested.
  */
 @Composable
 fun ObservabilityDashboardScreen(
@@ -99,17 +93,11 @@ fun ObservabilityDashboardScreen(
             TimeframeBar(
                 selected = state.timeframe,
                 onSelect = { timeframe ->
-                    if (timeframe == ProductTimeframe.CUSTOM) {
-                        customRangeOpen = true
-                    } else {
-                        onSelectTimeframe(timeframe)
-                    }
+                    if (timeframe == ProductTimeframe.CUSTOM) customRangeOpen = true
+                    else onSelectTimeframe(timeframe)
                 }
             )
-
-            if (state.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
+            if (state.isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
             when (section) {
                 DashboardSection.OVERVIEW -> DashboardOverview(
@@ -117,12 +105,7 @@ fun ObservabilityDashboardScreen(
                     onOpenNetworks = { section = DashboardSection.NETWORKS },
                     onOpenEvidence = { section = DashboardSection.EVIDENCE }
                 )
-
-                DashboardSection.NETWORKS -> DashboardNetworks(
-                    state = state,
-                    onRequestWifiIdentity = onRequestWifiIdentity
-                )
-
+                DashboardSection.NETWORKS -> DashboardNetworks(state, onRequestWifiIdentity)
                 DashboardSection.EVIDENCE -> DashboardEvidence(state)
             }
         }
@@ -140,10 +123,7 @@ fun ObservabilityDashboardScreen(
 }
 
 @Composable
-private fun DashboardHeader(
-    onRefresh: () -> Unit,
-    onOpenMonitor: () -> Unit
-) {
+private fun DashboardHeader(onRefresh: () -> Unit, onOpenMonitor: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -175,13 +155,13 @@ private fun DashboardHeader(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        HeaderAction("↻", "Refresh", onRefresh)
-        HeaderAction("⋮", "Advanced monitor", onOpenMonitor)
+        HeaderAction("↻", onRefresh)
+        HeaderAction("⋮", onOpenMonitor)
     }
 }
 
 @Composable
-private fun HeaderAction(symbol: String, description: String, onClick: () -> Unit) {
+private fun HeaderAction(symbol: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(40.dp)
@@ -189,7 +169,7 @@ private fun HeaderAction(symbol: String, description: String, onClick: () -> Uni
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = symbol,
+            symbol,
             fontSize = 26.sp,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = if (symbol == "⋮") 5.dp else 0.dp)
@@ -198,10 +178,7 @@ private fun HeaderAction(symbol: String, description: String, onClick: () -> Uni
 }
 
 @Composable
-private fun PrimaryNavigation(
-    section: DashboardSection,
-    onSelect: (DashboardSection) -> Unit
-) {
+private fun PrimaryNavigation(section: DashboardSection, onSelect: (DashboardSection) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -227,12 +204,12 @@ private fun PrimaryNavigation(
 private fun DashboardTab(
     label: String,
     selected: Boolean,
-    modifier: Modifier = Modifier,
+    modifier: Modifier,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(12.dp)
     val background = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val border = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+    val border = if (selected) background else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
     Box(
         modifier = modifier
             .height(42.dp)
@@ -251,10 +228,7 @@ private fun DashboardTab(
 }
 
 @Composable
-private fun TimeframeBar(
-    selected: ProductTimeframe,
-    onSelect: (ProductTimeframe) -> Unit
-) {
+private fun TimeframeBar(selected: ProductTimeframe, onSelect: (ProductTimeframe) -> Unit) {
     val options = listOf(
         ProductTimeframe.TODAY to "Today",
         ProductTimeframe.DAYS_7 to "7D",
@@ -269,24 +243,23 @@ private fun TimeframeBar(
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         options.forEach { (timeframe, label) ->
-            val isSelected = selected == timeframe
-            val shape = RoundedCornerShape(10.dp)
+            val active = timeframe == selected
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .height(34.dp)
                     .background(
-                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
-                        shape
+                        if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
+                        RoundedCornerShape(10.dp)
                     )
                     .clickable { onSelect(timeframe) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = label,
+                    label,
                     fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
             }
@@ -332,7 +305,7 @@ private fun LiveNetworkStrip(state: ProductUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface, shape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.20f), shape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f), shape)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -358,9 +331,9 @@ private fun LiveNetworkStrip(state: ProductUiState) {
             )
             Text(
                 when (state.wifiIdentityStatus) {
-                    "permission_required" -> "Wi-Fi name hidden by Android · optional"
-                    "location_disabled" -> "Wi-Fi name unavailable while Location is off"
-                    "unavailable" -> "Wi-Fi connected · name unavailable"
+                    "permission_required" -> "Wi-Fi name access is optional"
+                    "location_disabled" -> "Exact Wi-Fi name paused while Location is off"
+                    "unavailable" -> "Wi-Fi connected · exact name unavailable"
                     else -> if (state.monitoringHealthy) "Monitoring live" else "Measurement needs attention"
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -380,10 +353,9 @@ private fun LiveNetworkStrip(state: ProductUiState) {
 
 @Composable
 private fun UsageHero(state: ProductUiState) {
-    val shape = RoundedCornerShape(22.dp)
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = shape,
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(
@@ -398,7 +370,7 @@ private fun UsageHero(state: ProductUiState) {
                     Text(
                         timeframeTitle(state).uppercase(Locale.getDefault()),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f)
                     )
                     Text(
                         formatDashboardBytes(state.totalBytes),
@@ -411,7 +383,7 @@ private fun UsageHero(state: ProductUiState) {
                     Text(
                         "Network usage",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f)
                     )
                 }
                 EvidencePill(state.evidence)
@@ -452,11 +424,7 @@ private fun EvidencePill(summary: EvidenceCoverageSummary?) {
 }
 
 @Composable
-private fun DashboardTrendChart(
-    points: List<UsageTrendPoint>,
-    lineColor: Color,
-    accentColor: Color
-) {
+private fun DashboardTrendChart(points: List<UsageTrendPoint>, lineColor: Color, accentColor: Color) {
     val usable = points.size >= 2 && points.any { it.totalBytes > 0L }
     Box(
         modifier = Modifier
@@ -468,51 +436,49 @@ private fun DashboardTrendChart(
             Text(
                 "Trend appears as evidence is collected",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.65f)
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.62f)
             )
-            return@Box
-        }
-
-        val maxValue = points.maxOf { it.totalBytes }.coerceAtLeast(1L).toFloat()
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val baselineY = size.height - 6.dp.toPx()
-            drawLine(
-                color = lineColor.copy(alpha = 0.16f),
-                start = Offset(0f, baselineY),
-                end = Offset(size.width, baselineY),
-                strokeWidth = 1.dp.toPx()
-            )
-            val xStep = size.width / (points.size - 1)
-            val path = Path()
-            points.forEachIndexed { index, point ->
-                val x = xStep * index
-                val y = baselineY - (point.totalBytes.toFloat() / maxValue) * (size.height - 18.dp.toPx())
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        } else {
+            val maxValue = points.maxOf { it.totalBytes }.coerceAtLeast(1L).toFloat()
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val baselineY = size.height - 6.dp.toPx()
+                drawLine(
+                    color = lineColor.copy(alpha = 0.16f),
+                    start = Offset(0f, baselineY),
+                    end = Offset(size.width, baselineY),
+                    strokeWidth = 1.dp.toPx()
+                )
+                val xStep = size.width / (points.size - 1)
+                val path = Path()
+                points.forEachIndexed { index, point ->
+                    val x = xStep * index
+                    val y = baselineY - (point.totalBytes.toFloat() / maxValue) * (size.height - 18.dp.toPx())
+                    if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                drawPath(
+                    path = path,
+                    color = lineColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                )
+                val peakIndex = points.indices.maxByOrNull { points[it].totalBytes } ?: 0
+                val peak = points[peakIndex]
+                drawCircle(
+                    color = accentColor,
+                    radius = 4.dp.toPx(),
+                    center = Offset(
+                        xStep * peakIndex,
+                        baselineY - (peak.totalBytes.toFloat() / maxValue) * (size.height - 18.dp.toPx())
+                    )
+                )
             }
-            drawPath(
-                path = path,
-                color = lineColor,
-                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-            )
-            val peakIndex = points.indices.maxByOrNull { points[it].totalBytes } ?: 0
-            val peak = points[peakIndex]
-            val peakX = xStep * peakIndex
-            val peakY = baselineY - (peak.totalBytes.toFloat() / maxValue) * (size.height - 18.dp.toPx())
-            drawCircle(color = accentColor, radius = 4.dp.toPx(), center = Offset(peakX, peakY))
         }
     }
 }
 
 @Composable
-private fun DirectionSplit(
-    downloaded: Long,
-    uploaded: Long,
-    foreground: Color,
-    secondary: Color
-) {
+private fun DirectionSplit(downloaded: Long, uploaded: Long, foreground: Color, secondary: Color) {
     val total = downloaded + uploaded
     val downloadShare = if (total > 0L) downloaded.toFloat() / total else 0f
-
     Row(modifier = Modifier.fillMaxWidth()) {
         DirectionMetric("↓", "Downloaded", formatDashboardBytes(downloaded), Modifier.weight(1f), foreground)
         DirectionMetric("↑", "Uploaded", formatDashboardBytes(uploaded), Modifier.weight(1f), foreground)
@@ -543,13 +509,7 @@ private fun DirectionSplit(
 }
 
 @Composable
-private fun DirectionMetric(
-    symbol: String,
-    label: String,
-    value: String,
-    modifier: Modifier,
-    color: Color
-) {
+private fun DirectionMetric(symbol: String, label: String, value: String, modifier: Modifier, color: Color) {
     Column(modifier = modifier) {
         Text(
             "$symbol $value",
@@ -557,11 +517,7 @@ private fun DirectionMetric(
             fontWeight = FontWeight.SemiBold,
             color = color
         )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color.copy(alpha = 0.68f)
-        )
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.68f))
     }
 }
 
@@ -572,10 +528,7 @@ private fun AnalyticsHighlights(state: ProductUiState) {
         .filter { it.identity != UsageBucketAllocator.UNATTRIBUTED_ID }
         .maxByOrNull { it.totalBytes }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         AnalyticsTile(
             eyebrow = "PEAK",
             value = peak?.let { formatDashboardBytes(it.totalBytes) } ?: "—",
@@ -592,25 +545,16 @@ private fun AnalyticsHighlights(state: ProductUiState) {
 }
 
 @Composable
-private fun AnalyticsTile(
-    eyebrow: String,
-    value: String,
-    detail: String,
-    modifier: Modifier = Modifier
-) {
+private fun AnalyticsTile(eyebrow: String, value: String, detail: String, modifier: Modifier) {
     val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface, shape)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f), shape)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f), shape)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Text(
-            eyebrow,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(eyebrow, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             value,
             style = MaterialTheme.typography.titleMedium,
@@ -618,13 +562,15 @@ private fun AnalyticsTile(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Text(
-            detail,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        if (detail.isNotBlank()) {
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -638,11 +584,7 @@ private fun NetworkMixCard(state: ProductUiState, onOpenNetworks: () -> Unit) {
             state.networks.sortedByDescending { it.totalBytes }.take(3).forEach { network ->
                 NetworkShareRow(network, state.totalBytes)
             }
-            Text(
-                "View all networks →",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text("View all networks →", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -653,46 +595,28 @@ private fun EvidenceTrustCard(summary: EvidenceCoverageSummary?, onOpenEvidence:
         SectionHeading("Evidence", "How strongly the usage can be explained")
         if (summary == null) {
             EmptyAnalytics("Collecting enough observations to evaluate this timeframe.")
-            return@DashboardCard
-        }
-        val coverage = summary.evidenceCoveragePercent
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    coverage?.let { "${it.roundToInt()}%" } ?: "—",
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Evidence coverage",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        } else {
+            val coverage = summary.evidenceCoveragePercent
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        coverage?.let { "${it.roundToInt()}%" } ?: "—",
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("Evidence coverage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                HealthChip(summary.healthState)
             }
-            HealthChip(summary.healthState)
+            EvidenceCoverageBar(coverage)
+            Text(evidenceOneLine(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Understand the evidence →", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
-        EvidenceCoverageBar(coverage)
-        Text(
-            evidenceOneLine(summary),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            "Understand the evidence →",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
-        )
     }
 }
 
 @Composable
-private fun DashboardNetworks(
-    state: ProductUiState,
-    onRequestWifiIdentity: () -> Unit
-) {
+private fun DashboardNetworks(state: ProductUiState, onRequestWifiIdentity: () -> Unit) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -700,12 +624,7 @@ private fun DashboardNetworks(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            SectionHeading(
-                "Network breakdown",
-                "${timeframeTitle(state)} · ${formatDashboardBytes(state.totalBytes)} total"
-            )
-        }
+        item { SectionHeading("Network breakdown", "${timeframeTitle(state)} · ${formatDashboardBytes(state.totalBytes)} total") }
         if (state.networks.isEmpty()) {
             item { DashboardCard { EmptyAnalytics("No network usage in this timeframe yet.") } }
         } else {
@@ -713,10 +632,8 @@ private fun DashboardNetworks(
                 NetworkDetailCard(network, state.totalBytes)
             }
         }
-        if (state.wifiIdentityStatus == "permission_required" || state.wifiIdentityStatus == "location_disabled") {
-            item {
-                OptionalWifiIdentityCard(state.wifiIdentityStatus, onRequestWifiIdentity)
-            }
+        if (state.wifiIdentityStatus in setOf("opt_in_required", "permission_required", "location_disabled")) {
+            item { OptionalWifiIdentityCard(state.wifiIdentityStatus, onRequestWifiIdentity) }
         }
         item { Spacer(Modifier.height(8.dp)) }
     }
@@ -725,10 +642,7 @@ private fun DashboardNetworks(
 @Composable
 private fun NetworkDetailCard(network: UsageNetworkTotal, totalBytes: Long) {
     DashboardCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     network.displayName,
@@ -737,20 +651,11 @@ private fun NetworkDetailCard(network: UsageNetworkTotal, totalBytes: Long) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    friendlyTransport(network.transport),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(friendlyTransport(network.transport), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(
-                formatDashboardBytes(network.totalBytes),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Text(formatDashboardBytes(network.totalBytes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
-        val share = if (totalBytes > 0L) network.totalBytes.toFloat() / totalBytes else 0f
-        ShareBar(share)
+        ShareBar(if (totalBytes > 0L) network.totalBytes.toFloat() / totalBytes else 0f)
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
                 "↓ ${formatDashboardBytes(network.rxBytes)}",
@@ -758,11 +663,7 @@ private fun NetworkDetailCard(network: UsageNetworkTotal, totalBytes: Long) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(
-                "↑ ${formatDashboardBytes(network.txBytes)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text("↑ ${formatDashboardBytes(network.txBytes)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -770,22 +671,18 @@ private fun NetworkDetailCard(network: UsageNetworkTotal, totalBytes: Long) {
 @Composable
 private fun OptionalWifiIdentityCard(status: String, onRequestWifiIdentity: () -> Unit) {
     DashboardCard {
+        Text("Exact Wi-Fi names", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Text(
-            "Wi-Fi names are optional",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            if (status == "location_disabled") {
-                "Android Location is off. Usage monitoring still works; turn it on only if you want Traffic Monitoring to display the connected SSID."
-            } else {
-                "Traffic Monitoring works without your Wi-Fi name. Android classifies SSID as location-sensitive, so exact names require optional precise-location access."
+            when (status) {
+                "location_disabled" -> "Monitoring works without the SSID. Android Location is currently off; turn it on only if you explicitly want the exact Wi-Fi name."
+                "permission_required" -> "You opted into exact Wi-Fi names, but Android still needs precise-location permission for the SSID field. Core monitoring does not depend on it."
+                else -> "Optional. Android classifies the connected SSID as location-sensitive. Leave this off to monitor usage without touching location-sensitive Wi-Fi identity fields."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         TextButton(onClick = onRequestWifiIdentity, contentPadding = PaddingValues(0.dp)) {
-            Text(if (status == "location_disabled") "Open location settings" else "Enable Wi-Fi names")
+            Text(if (status == "location_disabled") "Open Location settings" else "Enable exact names")
         }
     }
 }
@@ -800,12 +697,7 @@ private fun DashboardEvidence(state: ProductUiState) {
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
-            SectionHeading(
-                "Evidence behind the number",
-                "Usage is useful only when you can understand how strongly it is supported."
-            )
-        }
+        item { SectionHeading("Evidence behind the number", "Usage is useful only when you can see how strongly it is supported.") }
         if (summary == null) {
             item { DashboardCard { EmptyAnalytics("Not enough evidence yet for this timeframe.") } }
         } else {
@@ -831,33 +723,29 @@ private fun DashboardEvidence(state: ProductUiState) {
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    EvidenceMetric("Attributed", formatDashboardBytes(summary.attributedBytes), Modifier.weight(1f))
-                    EvidenceMetric("Unattributed", formatDashboardBytes(summary.unattributedBytes), Modifier.weight(1f))
+                    AnalyticsTile("ATTRIBUTED", formatDashboardBytes(summary.attributedBytes), "", Modifier.weight(1f))
+                    AnalyticsTile("UNATTRIBUTED", formatDashboardBytes(summary.unattributedBytes), "", Modifier.weight(1f))
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    EvidenceMetric("Continuity gaps", summary.continuityGapCount.toString(), Modifier.weight(1f))
-                    EvidenceMetric("Discarded", summary.discardedIntervalCount.toString(), Modifier.weight(1f))
+                    AnalyticsTile("CONTINUITY GAPS", summary.continuityGapCount.toString(), "", Modifier.weight(1f))
+                    AnalyticsTile("DISCARDED", summary.discardedIntervalCount.toString(), "", Modifier.weight(1f))
                 }
             }
             if (summary.healthReasons.isNotEmpty()) {
                 item {
                     DashboardCard {
-                        SectionHeading("Why measurement health is ${healthLabel(summary.healthState).lowercase()}", "Transparent by design")
+                        SectionHeading("Why health is ${healthLabel(summary.healthState).lowercase()}", "Transparent by design")
                         summary.healthReasons.forEach { reason ->
-                            Text(
-                                "• ${friendlyEvidenceReason(reason)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("• ${friendlyEvidenceReason(reason)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
             item {
                 Text(
-                    "Traffic Monitoring never reallocates uncertain or discarded bytes just to make the totals look complete.",
+                    "Traffic Monitoring never reallocates uncertain or discarded bytes just to make totals look complete.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -868,57 +756,38 @@ private fun DashboardEvidence(state: ProductUiState) {
 }
 
 @Composable
-private fun EvidenceMetric(label: String, value: String, modifier: Modifier) {
-    AnalyticsTile(eyebrow = label.uppercase(Locale.getDefault()), value = value, detail = "", modifier = modifier)
-}
-
-@Composable
-private fun DashboardCard(
-    onClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
+private fun DashboardCard(onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(18.dp)
-    if (onClick != null) {
+    val column: @Composable ColumnScope.() -> Unit = {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content
+        )
+    }
+    if (onClick == null) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = shape,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            content = column
+        )
+    } else {
         Card(
             onClick = onClick,
             modifier = Modifier.fillMaxWidth(),
             shape = shape,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                content = content
-            )
-        }
-    } else {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = shape,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                content = content
-            )
-        }
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            content = column
+        )
     }
 }
 
 @Composable
 private fun SectionHeading(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -941,11 +810,7 @@ private fun NetworkShareRow(network: UsageNetworkTotal, totalBytes: Long) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(
-                formatDashboardBytes(network.totalBytes),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(formatDashboardBytes(network.totalBytes), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
         }
         ShareBar(share)
     }
@@ -980,43 +845,24 @@ private fun HealthChip(state: MeasurementHealthState) {
         MeasurementHealthState.LIMITED -> MaterialTheme.colorScheme.secondary
         MeasurementHealthState.DEGRADED -> MaterialTheme.colorScheme.error
     }
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = color.copy(alpha = 0.12f)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Surface(shape = RoundedCornerShape(50), color = color.copy(alpha = 0.12f)) {
+        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(7.dp).background(color, CircleShape))
-            Text(
-                "  ${healthLabel(state)}",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = color
-            )
+            Text("  ${healthLabel(state)}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = color)
         }
     }
 }
 
 @Composable
 private fun EmptyAnalytics(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DashboardRangeDialog(
-    onDismiss: () -> Unit,
-    onApply: (Long, Long) -> Unit
-) {
+private fun DashboardRangeDialog(onDismiss: () -> Unit, onApply: (Long, Long) -> Unit) {
     val state = rememberDateRangePickerState()
     val valid = state.selectedStartDateMillis != null && state.selectedEndDateMillis != null
-
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -1062,11 +908,10 @@ private fun formatDashboardBytes(bytes: Long): String {
     }
 }
 
-private fun formatHour(epochMs: Long): String =
-    Instant.ofEpochMilli(epochMs)
-        .atZone(ZoneId.systemDefault())
-        .toLocalTime()
-        .let { String.format(Locale.US, "%02d:%02d", it.hour, it.minute) }
+private fun formatHour(epochMs: Long): String = Instant.ofEpochMilli(epochMs)
+    .atZone(ZoneId.systemDefault())
+    .toLocalTime()
+    .let { String.format(Locale.US, "%02d:%02d", it.hour, it.minute) }
 
 private fun friendlyTransport(value: String): String = when {
     value.contains("wifi", ignoreCase = true) -> "Wi-Fi"
