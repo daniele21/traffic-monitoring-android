@@ -52,11 +52,27 @@ class ValidationExportWriter {
                 .put("pendingIntentApi", "ConnectivityManager.registerNetworkCallback(NetworkRequest, PendingIntent)")
                 .put("counterSource", "TrafficStats.getTotalRxBytes/getTotalTxBytes")
                 .put("counterScope", "device_all_interfaces_since_boot")
-                .put("recoveryCadenceHours", JSONObject.NULL)
+                .put("recoveryCadenceHours", 4)
                 .put("usageAccessGranted", false)
-                .put("wifiIdentityPermissionState", "not_requested")
+                .put("wifiIdentityPermissionState", wifiIdentityPermissionState(bundle))
                 .put("batteryModeDeclaredByTester", bundle.run.batteryModeDeclaredByTester ?: JSONObject.NULL)
         )
+
+    private fun wifiIdentityPermissionState(bundle: ValidationExportBundle): String {
+        val latestWifi = bundle.networkEvents
+            .asSequence()
+            .filter { it.transportSet.contains("wifi") }
+            .maxByOrNull { it.receivedAtWallClockMs }
+            ?: return "not_applicable_or_unknown"
+
+        return when (latestWifi.ssidAvailability) {
+            "known" -> "granted_and_available"
+            "permission_required" -> "not_granted_or_not_precise"
+            "location_disabled" -> "granted_location_disabled"
+            "unavailable" -> "granted_but_unavailable"
+            else -> latestWifi.ssidAvailability
+        }
+    }
 
     private fun summary(bundle: ValidationExportBundle): JSONObject {
         val eventsBySource = JSONObject()
@@ -216,6 +232,9 @@ class ValidationExportWriter {
         - source=pending_intent: ConnectivityManager PendingIntent availability wakes that may outlive the UI process;
         - counter-snapshots.csv / attribution-intervals.csv: cumulative TrafficStats evidence and conservative deltas.
 
+        Wi-Fi names are location-sensitive Android information. If the user does not grant precise location access,
+        or if Android Location is disabled, Wi-Fi identity remains explicit as unavailable instead of being guessed.
+
         A PendingIntent wake proves only that Android delivered network-availability evidence at that timestamp. It does
         not by itself prove every loss/boundary is observable. M1C compares deliberate transitions against the exported
         event timeline before deciding whether this background strategy is sufficient.
@@ -223,7 +242,8 @@ class ValidationExportWriter {
         Continuity gaps, process restarts, VPN ambiguity, reboots, resets and clock discontinuities are never silently
         converted into confident network usage.
 
-        No packet contents, destinations, DNS queries, account identifiers or device hardware identifiers are collected.
+        No packet contents, destinations, DNS queries, account identifiers, physical coordinates or device hardware
+        identifiers are collected.
     """.trimIndent() + "\n"
 
     internal fun csv(header: List<String>, rows: List<List<Any?>>): String = buildString {
