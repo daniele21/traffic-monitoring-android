@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.daniele21.trafficmonitoring.TrafficMonitoringApplication
+import com.daniele21.trafficmonitoring.evidence.EvidenceCoverageSummary
+import com.daniele21.trafficmonitoring.evidence.EvidenceSummaryCalculator
+import com.daniele21.trafficmonitoring.usage.UsageBucketAllocator
 import com.daniele21.trafficmonitoring.usage.UsageNetworkTotal
 import com.daniele21.trafficmonitoring.usage.UsageTrendPoint
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +21,7 @@ import java.time.temporal.ChronoUnit
 
 class ProductViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as TrafficMonitoringApplication
+    private val evidenceCalculator = EvidenceSummaryCalculator()
     private val _state = MutableStateFlow(ProductUiState())
     val state: StateFlow<ProductUiState> = _state.asStateFlow()
 
@@ -64,6 +68,22 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                         endMs = range.second,
                         trendSlotMs = timeframe.trendSlotMs
                     )
+                    val evidenceIntervals = app.validationRepository.loadEvidenceIntervals(
+                        startMs = range.first,
+                        endMs = range.second
+                    )
+                    val unattributed = snapshot.networks.firstOrNull {
+                        it.identity == UsageBucketAllocator.UNATTRIBUTED_ID
+                    }
+                    val evidence = evidenceCalculator.calculate(
+                        startMs = range.first,
+                        endMs = range.second,
+                        totalRxBytes = snapshot.rxBytes,
+                        totalTxBytes = snapshot.txBytes,
+                        unattributedRxBytes = unattributed?.rxBytes ?: 0L,
+                        unattributedTxBytes = unattributed?.txBytes ?: 0L,
+                        intervals = evidenceIntervals
+                    )
                     val currentNetwork = app.validationRepository.currentNetworkSnapshot().displayName
                     val monitoring = app.backgroundNetworkMonitor.status()
                     ProductUiState(
@@ -78,7 +98,8 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                         totalBytes = snapshot.totalBytes,
                         unattributedBytes = snapshot.unattributedBytes,
                         networks = snapshot.networks,
-                        trend = snapshot.trend
+                        trend = snapshot.trend,
+                        evidence = evidence
                     )
                 }
             }.onSuccess { _state.value = it }
@@ -128,5 +149,6 @@ data class ProductUiState(
     val unattributedBytes: Long = 0L,
     val networks: List<UsageNetworkTotal> = emptyList(),
     val trend: List<UsageTrendPoint> = emptyList(),
+    val evidence: EvidenceCoverageSummary? = null,
     val error: String? = null
 )
