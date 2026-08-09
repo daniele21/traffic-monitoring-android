@@ -3,19 +3,23 @@ package com.daniele21.trafficmonitoring.data
 import android.os.Build
 import android.os.SystemClock
 import com.daniele21.trafficmonitoring.BuildConfig
+import com.daniele21.trafficmonitoring.domain.AttributionEngine
 import com.daniele21.trafficmonitoring.domain.AttributionEvidence
-import com.daniele21.trafficmonitoring.domain.CounterAttribution
 import com.daniele21.trafficmonitoring.platform.NetworkContextReader
 import com.daniele21.trafficmonitoring.platform.NetworkContextSnapshot
 import com.daniele21.trafficmonitoring.platform.TrafficCounterReader
+import com.daniele21.trafficmonitoring.usage.UsageRepository
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
 import java.util.UUID
 
 class ValidationRepository(
     private val database: ValidationDatabase,
     private val networkContextReader: NetworkContextReader,
-    private val trafficCounterReader: TrafficCounterReader
+    private val trafficCounterReader: TrafficCounterReader,
+    private val usageRepository: UsageRepository? = null,
+    private val attributionEngine: AttributionEngine = AttributionEngine()
 ) {
     private val dao = database.validationDao()
     private val runMutex = Mutex()
@@ -32,7 +36,7 @@ class ValidationRepository(
             label = null,
             appVersion = BuildConfig.VERSION_NAME,
             schemaVersion = 1,
-            attributionAlgorithmVersion = 1,
+            attributionAlgorithmVersion = 2,
             deviceManufacturer = Build.MANUFACTURER,
             deviceModel = Build.MODEL,
             androidVersion = Build.VERSION.RELEASE,
@@ -72,6 +76,8 @@ class ValidationRepository(
             )
         )
     }
+
+    fun currentNetworkSnapshot(): NetworkContextSnapshot = networkContextReader.readCurrent()
 
     suspend fun captureNetworkSnapshot(
         source: String = "manual",
@@ -129,30 +135,49 @@ class ValidationRepository(
 
         if (previousCounter != null) {
             val previousEvent = previousCounter.eventId?.let { dao.networkEventById(it) }
-            val result = CounterAttribution.between(
+            val result = attributionEngine.between(
                 previous = previousCounter.toEvidence(previousEvent),
                 current = currentCounter.toEvidence(event),
                 continuityBrokenReason = if (firstCaptureInProcess) "process_restart_boundary" else null
             )
             if (result != null) {
-                dao.insertAttributionInterval(
-                    AttributionIntervalEntity(
-                        id = UUID.randomUUID().toString(),
-                        runId = run.id,
-                        startedAtMs = result.startedAtMs,
-                        endedAtMs = result.endedAtMs,
-                        networkIdentity = result.networkIdentity,
-                        networkDisplayName = result.networkDisplayName,
-                        transport = result.transport,
-                        rxBytes = result.rxBytes,
-                        txBytes = result.txBytes,
-                        confidence = result.confidence,
-                        startEvidenceEventId = previousCounter.eventId,
-                        endEvidenceEventId = event.id,
-                        reason = result.reason,
-                        algorithmVersion = run.attributionAlgorithmVersion
-                    )
+                val interval = AttributionIntervalEntity(
+                    id = UUID.randomUUID().toString(),
+                    runId = run.id,
+                    startedAtMs = result.startedAtMs,
+                    endedAtMs = result.endedAtMs,
+                    networkIdentity = result.networkIdentity,
+                    networkDisplayName = result.networkDisplayName,
+                    transport = result.transport,
+                    rxBytes = result.rxBytes,
+                    txBytes = result.txBytes,
+                    confidence = result.confidence,
+                    startEvidenceEventId = previousCounter.eventId,
+                    endEvidenceEventId = event.id,
+                    reason = result.reason,
+                    algorithmVersion = run.attributionAlgorithmVersion
                 )
+                dao.insertAttributionInterval(interval)
+
+                usageRepository?.let { usage ->
+                    runCatching { usage.ingest(interval) }
+                        .onFailure { error ->
+                            dao.insertLifecycleEvent(
+                                LifecycleEventEntity(
+                                    id = UUID.randomUUID().toString(),
+                                    runId = run.id,
+                                    timestampWallClockMs = System.currentTimeMillis(),
+                                    timestampElapsedRealtimeMs = SystemClock.elapsedRealtime(),
+                                    kind = "usage_history_ingest_failed",
+                                    detailsJson = JSONObject()
+                                        .put("intervalId", interval.id)
+                                        .put("error", error::class.java.simpleName)
+                                        .put("message", error.message)
+                                        .toString()
+                                )
+                            )
+                        }
+                }
             }
         }
 
@@ -181,6 +206,7 @@ class ValidationRepository(
         dao.activeRun()?.let { active ->
             dao.updateRun(active.copy(endedAtMs = System.currentTimeMillis()))
         }
+        firstCaptureInProcess = true
         ensureActiveRun().also {
             dao.insertLifecycleEvent(
                 LifecycleEventEntity(
