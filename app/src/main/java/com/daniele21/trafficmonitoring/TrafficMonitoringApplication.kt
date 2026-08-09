@@ -9,6 +9,8 @@ import com.daniele21.trafficmonitoring.platform.AndroidNetworkContextReader
 import com.daniele21.trafficmonitoring.platform.AndroidTrafficCounterReader
 import com.daniele21.trafficmonitoring.platform.InProcessNetworkMonitor
 import com.daniele21.trafficmonitoring.platform.PendingIntentNetworkMonitor
+import com.daniele21.trafficmonitoring.usage.UsageDatabase
+import com.daniele21.trafficmonitoring.usage.UsageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,11 +24,20 @@ class TrafficMonitoringApplication : Application() {
         ValidationDatabase.getInstance(this)
     }
 
+    val usageDatabase: UsageDatabase by lazy {
+        UsageDatabase.getInstance(this)
+    }
+
+    val usageRepository: UsageRepository by lazy {
+        UsageRepository(usageDatabase)
+    }
+
     val validationRepository: ValidationRepository by lazy {
         ValidationRepository(
             database = validationDatabase,
             networkContextReader = AndroidNetworkContextReader(this),
-            trafficCounterReader = AndroidTrafficCounterReader(this)
+            trafficCounterReader = AndroidTrafficCounterReader(this),
+            usageRepository = usageRepository
         )
     }
 
@@ -50,7 +61,6 @@ class TrafficMonitoringApplication : Application() {
             }
         }
 
-        // Live diagnostics remain useful while the process exists.
         inProcessNetworkMonitor = InProcessNetworkMonitor(
             context = this,
             repository = validationRepository,
