@@ -5,6 +5,7 @@ import android.os.SystemClock
 import com.daniele21.trafficmonitoring.BuildConfig
 import com.daniele21.trafficmonitoring.domain.AttributionEngine
 import com.daniele21.trafficmonitoring.domain.AttributionEvidence
+import com.daniele21.trafficmonitoring.evidence.EvidenceIntervalInput
 import com.daniele21.trafficmonitoring.platform.NetworkContextReader
 import com.daniele21.trafficmonitoring.platform.NetworkContextSnapshot
 import com.daniele21.trafficmonitoring.platform.TrafficCounterReader
@@ -231,6 +232,16 @@ class ValidationRepository(
             recentIntervals = dao.recentAttributionIntervals(run.id, limit = 12)
         )
     }
+
+    suspend fun loadEvidenceIntervals(startMs: Long, endMs: Long): List<EvidenceIntervalInput> =
+        dao.attributionIntervalsBetween(startMs, endMs).map { interval ->
+            EvidenceIntervalInput(
+                startedAtMs = interval.startedAtMs,
+                endedAtMs = interval.endedAtMs,
+                confidence = interval.confidence,
+                reason = interval.reason
+            )
+        }
 
     suspend fun loadExportBundle(runId: String): ValidationExportBundle {
         val run = requireNotNull(dao.runById(runId)) { "Validation run not found: $runId" }
