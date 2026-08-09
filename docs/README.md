@@ -29,18 +29,20 @@ Measurement claims continue to depend on physical-device evidence even when prod
 
 1. `evidence-observability-roadmap.md`
 2. `e1-evidence-coverage.md` for implemented Coverage/Health semantics
-3. `product-spec.md`
-4. `product-ux.md`
-5. `architecture.md`
-6. `data-and-export.md` when Evidence Pack / provenance changes
-7. `implementation-plan.md` for combined M/E execution order
+3. `mission-dashboard-ux.md` for the current mission-led analytics hierarchy
+4. `product-spec.md`
+5. `product-ux.md`
+6. `architecture.md`
+7. `data-and-export.md` when Evidence Pack / provenance changes
+8. `implementation-plan.md` for combined M/E execution order
 
-### Building or refining the minimal usage UX
+### Building or refining the usage analytics UX
 
-1. `product-ux.md`
-2. `brand-kit.md`
-3. `e1-evidence-coverage.md` for the current Evidence surface
-4. `evidence-observability-roadmap.md` when adding Evidence/Experiments
+1. `mission-dashboard-ux.md` — current physical-phone-driven dashboard hierarchy
+2. `product-ux.md` — broader product interaction rules
+3. `brand-kit.md` — visual identity
+4. `e1-evidence-coverage.md` — Evidence Coverage / Measurement Health semantics
+5. `evidence-observability-roadmap.md` — product mission and future Evidence/Experiments
 
 ### Debugging locally or preparing a Play internal-test build
 
@@ -50,10 +52,11 @@ Measurement claims continue to depend on physical-device evidence even when prod
 ### Applying or changing the visual identity
 
 1. `brand-kit.md`
-2. `product-ux.md`
-3. `../app/src/main/java/com/daniele21/trafficmonitoring/ui/theme/TrafficMonitoringTheme.kt`
-4. `../app/src/main/res/drawable/ic_brand_shield.xml`
-5. `../docs/assets/traffic-monitoring-lockup.svg`
+2. `mission-dashboard-ux.md`
+3. `product-ux.md`
+4. `../app/src/main/java/com/daniele21/trafficmonitoring/ui/theme/TrafficMonitoringTheme.kt`
+5. `../app/src/main/res/drawable/ic_brand_shield.xml`
+6. `../docs/assets/traffic-monitoring-lockup.svg`
 
 ### Changing network attribution behavior
 
@@ -86,7 +89,8 @@ Measurement claims continue to depend on physical-device evidence even when prod
 ## Documents
 
 - `brand-kit.md` — approved shield identity, palette, product language and visual rules.
-- `product-ux.md` — minimal usage UX plus progressive-disclosure boundary between Usage, Evidence and Monitor.
+- `mission-dashboard-ux.md` — current analytics-led mobile hierarchy, physical-phone acceptance rules and optional Wi-Fi identity decision.
+- `product-ux.md` — broader usage UX plus progressive-disclosure boundary between Usage, Evidence and Monitor.
 - `product-spec.md` — evidence-first positioning, user problem, measurement scope, privacy and product truthfulness.
 - `evidence-observability-roadmap.md` — E0–E6 roadmap: Evidence Coverage, Health, Evidence Pack, Experiments, Assertions, optional app context and open observability export.
 - `e1-evidence-coverage.md` — implemented Evidence Coverage v1, Measurement Health thresholds, architecture, UI and acceptance tests.
