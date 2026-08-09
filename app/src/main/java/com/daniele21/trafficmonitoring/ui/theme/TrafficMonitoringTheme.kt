@@ -19,7 +19,9 @@ val RoyalBlue = Color(0xFF002996)
 val NetworkBlue = Color(0xFF207CCE)
 val SignalCyan = Color(0xFF0DC1F9)
 val ProductSurface = Color(0xFFF2F7FD)
-val DarkUi = Color(0xFF10141A)
+val DarkUi = Color(0xFF07111F)
+val DarkSurface = Color(0xFF0E1A2B)
+val DarkSurfaceVariant = Color(0xFF142742)
 val Healthy = Color(0xFF22C55E)
 val Warning = Color(0xFFF59E0B)
 val Critical = Color(0xFFEF4444)
@@ -46,24 +48,24 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF8CB1FF),
+    primary = Color(0xFF78A7FF),
     onPrimary = Midnight,
     primaryContainer = RoyalBlue,
     onPrimaryContainer = Color.White,
-    secondary = Color(0xFF78B9F3),
-    onSecondary = Midnight,
+    secondary = NetworkBlue,
+    onSecondary = Color.White,
     secondaryContainer = DeepNavy,
     onSecondaryContainer = Color.White,
     tertiary = SignalCyan,
     onTertiary = Midnight,
     background = DarkUi,
-    onBackground = Color(0xFFF3F7FF),
-    surface = Color(0xFF161D27),
-    onSurface = Color(0xFFF3F7FF),
-    surfaceVariant = DeepNavy,
-    onSurfaceVariant = Color(0xFFB9C7DC),
-    outline = Color(0xFF657895),
-    error = Color(0xFFFF8A80)
+    onBackground = Color(0xFFF6F9FF),
+    surface = DarkSurface,
+    onSurface = Color(0xFFF6F9FF),
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = Color(0xFFA8B8CE),
+    outline = Color(0xFF355071),
+    error = Color(0xFFFF817A)
 )
 
 @Composable
