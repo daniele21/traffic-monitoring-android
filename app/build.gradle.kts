@@ -49,7 +49,7 @@ val versionProperties = Properties().apply {
     }
 }
 val currentVersionCode = (versionProperties.getProperty("versionCode") ?: "1").toInt()
-val currentVersionName = versionProperties.getProperty("versionName") ?: "0.1.0-m1b"
+val currentVersionName = versionProperties.getProperty("versionName") ?: "0.1.0-m1c"
 
 android {
     namespace = "com.daniele21.trafficmonitoring"
@@ -135,6 +135,8 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
