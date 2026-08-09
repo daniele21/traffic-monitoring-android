@@ -163,6 +163,7 @@ Primary product surface:
 
 - Overview;
 - Networks;
+- Evidence;
 - Today / 7 days / 30 days / This month / Custom;
 - custom date-range picker;
 - Total used;
@@ -174,7 +175,7 @@ Primary product surface:
 
 Advanced technical state is moved behind **Monitor**.
 
-UX source of truth: `product-ux.md` and `brand-kit.md`.
+UX source of truth: `product-ux.md`, `e1-evidence-coverage.md` and `brand-kit.md`.
 
 Remaining M4 refinement before release hardening:
 
@@ -228,22 +229,30 @@ Defines:
 
 ## E1 — Evidence Coverage + Measurement Health
 
-**Status: next recommended product implementation.**
+**Status: implementation complete; emulator/product validation pending.**
 
-Deliver:
+Implemented:
 
-- pure `EvidenceSummaryCalculator`;
-- attributed/unattributed reconciliation;
-- continuity/discarded evidence summary;
-- versioned Evidence Coverage definition;
-- compact Overview card;
-- human-readable Evidence detail.
+- pure `EvidenceSummaryCalculator` with metric definition version 1;
+- attributed/unattributed byte reconciliation;
+- no fake 100% state when accountable usage is absent;
+- continuity-gap and discarded-evidence summary;
+- deterministic `Good / Limited / Degraded` health policy;
+- overlap query across validation intervals for the selected timeframe;
+- compact Overview Evidence card;
+- dedicated human-readable Evidence section;
+- exact Coverage v1 methodology visible in-product;
+- unit fixtures for coverage, no-data, process restart, long gaps and timeframe clipping.
 
-Gate: deterministic fixtures reconcile exactly with underlying attribution totals and every degraded health state is explainable.
+Source of truth: `e1-evidence-coverage.md`.
+
+Remaining gate:
+
+- emulator/device UI validation and reconciliation against Monitor/export evidence.
 
 ## E2 — Evidence Timeline + Evidence Pack
 
-**Status: planned.**
+**Status: next recommended product implementation.**
 
 Deliver:
 
@@ -308,9 +317,9 @@ M2 replay acceptance
 M5 multi-OEM matrix
 
 TRACK B — differentiated product
-E1 Evidence Coverage + Health
+E1 Evidence Coverage + Health            implemented
         ↓
-E2 Evidence Timeline + Pack
+E2 Evidence Timeline + Pack              next
         ↓
 E3 Experiment Mode
         ↓
