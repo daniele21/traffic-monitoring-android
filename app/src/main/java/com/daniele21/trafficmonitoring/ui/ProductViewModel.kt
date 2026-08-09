@@ -26,8 +26,19 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun selectTimeframe(timeframe: ProductTimeframe) {
+        if (timeframe == ProductTimeframe.CUSTOM) return
         if (_state.value.timeframe == timeframe) return
         _state.value = _state.value.copy(timeframe = timeframe)
+        refresh()
+    }
+
+    fun selectCustomRange(startMs: Long, endExclusiveMs: Long) {
+        if (endExclusiveMs <= startMs) return
+        _state.value = _state.value.copy(
+            timeframe = ProductTimeframe.CUSTOM,
+            customStartMs = startMs,
+            customEndExclusiveMs = endExclusiveMs
+        )
         refresh()
     }
 
@@ -36,9 +47,18 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
             _state.value = _state.value.copy(isLoading = true, error = null)
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val timeframe = _state.value.timeframe
+                    val currentState = _state.value
+                    val timeframe = currentState.timeframe
                     val now = System.currentTimeMillis()
-                    val range = timeframe.range(now)
+                    val range = if (
+                        timeframe == ProductTimeframe.CUSTOM &&
+                        currentState.customStartMs != null &&
+                        currentState.customEndExclusiveMs != null
+                    ) {
+                        currentState.customStartMs to currentState.customEndExclusiveMs
+                    } else {
+                        timeframe.range(now)
+                    }
                     val snapshot = app.usageRepository.snapshot(
                         startMs = range.first,
                         endMs = range.second,
@@ -49,6 +69,8 @@ class ProductViewModel(application: Application) : AndroidViewModel(application)
                     ProductUiState(
                         isLoading = false,
                         timeframe = timeframe,
+                        customStartMs = currentState.customStartMs,
+                        customEndExclusiveMs = currentState.customEndExclusiveMs,
                         currentNetwork = currentNetwork,
                         monitoringHealthy = monitoring.registered && monitoring.lastError == null,
                         downloadedBytes = snapshot.rxBytes,
@@ -77,7 +99,8 @@ enum class ProductTimeframe(
     TODAY("Today", 60 * 60 * 1000L),
     DAYS_7("7 days", 6 * 60 * 60 * 1000L),
     DAYS_30("30 days", 24 * 60 * 60 * 1000L),
-    MONTH("This month", 24 * 60 * 60 * 1000L);
+    MONTH("This month", 24 * 60 * 60 * 1000L),
+    CUSTOM("Custom", 24 * 60 * 60 * 1000L);
 
     fun range(nowMs: Long): Pair<Long, Long> {
         val now = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault())
@@ -86,6 +109,7 @@ enum class ProductTimeframe(
             DAYS_7 -> now.minus(7, ChronoUnit.DAYS)
             DAYS_30 -> now.minus(30, ChronoUnit.DAYS)
             MONTH -> now.withDayOfMonth(1).toLocalDate().atStartOfDay(now.zone)
+            CUSTOM -> now.minus(7, ChronoUnit.DAYS)
         }
         return start.toInstant().toEpochMilli() to nowMs
     }
@@ -94,6 +118,8 @@ enum class ProductTimeframe(
 data class ProductUiState(
     val isLoading: Boolean = true,
     val timeframe: ProductTimeframe = ProductTimeframe.MONTH,
+    val customStartMs: Long? = null,
+    val customEndExclusiveMs: Long? = null,
     val currentNetwork: String = "Checking…",
     val monitoringHealthy: Boolean = true,
     val downloadedBytes: Long = 0L,
