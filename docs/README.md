@@ -2,6 +2,17 @@
 
 The documentation follows progressive disclosure. Start from the smallest document that answers the current task and follow links only when necessary.
 
+## Two roadmap tracks
+
+Traffic Monitoring now has two explicit development tracks:
+
+```text
+M roadmap — Android measurement reliability / feasibility
+E roadmap — evidence-first observability product
+```
+
+Measurement claims continue to depend on physical-device evidence even when product-layer code already exists.
+
 ## Reading paths
 
 ### Implementing measurement/background behavior
@@ -14,11 +25,20 @@ The documentation follows progressive disclosure. Start from the smallest docume
 6. `m1e-field-validation.md` for the 48–72 hour standard-mode gate
 7. `m5-device-matrix.md` for cross-OEM validation
 
-### Building or refining the product UX
+### Building the evidence-first product
+
+1. `evidence-observability-roadmap.md`
+2. `product-spec.md`
+3. `product-ux.md`
+4. `architecture.md`
+5. `data-and-export.md` when Evidence Pack / provenance changes
+6. `implementation-plan.md` for combined M/E execution order
+
+### Building or refining the minimal usage UX
 
 1. `product-ux.md`
 2. `brand-kit.md`
-3. `implementation-plan.md` M3/M4
+3. `evidence-observability-roadmap.md` when adding Evidence/Experiments
 
 ### Debugging locally or preparing a Play internal-test build
 
@@ -40,7 +60,16 @@ The documentation follows progressive disclosure. Start from the smallest docume
 3. `data-and-export.md`
 4. `m1b-validation.md` for the validated counter/in-process baseline
 5. `m1c-validation.md` / `m1e-field-validation.md` when background evidence is affected
-6. `decisions.md` when revisiting a recorded choice
+6. `evidence-observability-roadmap.md` if Evidence Coverage semantics are affected
+7. `decisions.md` when revisiting a recorded choice
+
+### Changing Evidence Coverage / experiments / assertions
+
+1. `evidence-observability-roadmap.md`
+2. `architecture.md`
+3. `product-ux.md`
+4. `measurement-engine.md` only if underlying attribution semantics change
+5. `data-and-export.md` if provenance/export contracts change
 
 ### Changing validation/export behavior
 
@@ -48,17 +77,19 @@ The documentation follows progressive disclosure. Start from the smallest docume
 2. `m1c-validation.md`
 3. `m1e-field-validation.md`
 4. `m5-device-matrix.md`
+5. `evidence-observability-roadmap.md` when changing the product Evidence Pack rather than the engineering validation ZIP
 
 ## Documents
 
 - `brand-kit.md` — approved shield identity, palette, product language and visual rules.
-- `product-ux.md` — minimal consumer information architecture and language boundary between product UI and Monitor.
-- `product-spec.md` — user problem, measurement scope, non-goals and success criteria.
-- `architecture.md` — layers, components and runtime data flow.
+- `product-ux.md` — minimal usage UX plus progressive-disclosure boundary between Usage, Evidence and Monitor.
+- `product-spec.md` — evidence-first positioning, user problem, measurement scope, privacy and product truthfulness.
+- `evidence-observability-roadmap.md` — E0–E6 roadmap: Evidence Coverage, Health, Evidence Pack, Experiments, Assertions, optional app context and open observability export.
+- `architecture.md` — measurement, usage, evidence, experiment and export layers.
 - `measurement-engine.md` — traffic counters, network identity, attribution intervals, confidence and reset handling.
 - `background-strategy.md` — PendingIntent events, process lifecycle, recovery and Foreground Service escalation.
 - `data-and-export.md` — raw evidence, derived intervals and validation export bundle.
-- `implementation-plan.md` — phased delivery plan and current status through M5.
+- `implementation-plan.md` — combined M/E delivery plan and current status.
 - `m1b-validation.md` — completed M1B emulator evidence.
 - `m1c-validation.md` — PendingIntent process-absent validation protocol.
 - `m1e-field-validation.md` — 48–72 hour standard-mode physical-device protocol.
