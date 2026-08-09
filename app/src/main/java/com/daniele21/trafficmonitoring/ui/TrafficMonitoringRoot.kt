@@ -29,6 +29,7 @@ fun TrafficMonitoringRoot(
     onSelectTimeframe: (ProductTimeframe) -> Unit,
     onSelectCustomRange: (Long, Long) -> Unit,
     onRefreshProduct: () -> Unit,
+    onRequestWifiIdentity: () -> Unit,
     onRefreshNetwork: () -> Unit,
     onArmBackground: () -> Unit,
     onAddMarker: (String, String, String?) -> Unit,
@@ -40,11 +41,12 @@ fun TrafficMonitoringRoot(
     BackHandler(enabled = monitorOpen) { monitorOpen = false }
 
     if (!monitorOpen) {
-        ProductScreen(
+        AdaptiveProductScreen(
             state = productState,
             onSelectTimeframe = onSelectTimeframe,
             onSelectCustomRange = onSelectCustomRange,
             onRefresh = onRefreshProduct,
+            onRequestWifiIdentity = onRequestWifiIdentity,
             onOpenMonitor = { monitorOpen = true }
         )
     } else {
