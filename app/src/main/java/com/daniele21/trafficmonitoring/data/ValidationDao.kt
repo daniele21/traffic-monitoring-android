@@ -71,6 +71,13 @@ interface ValidationDao {
     @Query("SELECT * FROM attribution_intervals ORDER BY startedAtMs ASC")
     suspend fun allAttributionIntervals(): List<AttributionIntervalEntity>
 
+    @Query(
+        "SELECT * FROM attribution_intervals " +
+            "WHERE endedAtMs > :startMs AND startedAtMs < :endMs " +
+            "ORDER BY startedAtMs ASC"
+    )
+    suspend fun attributionIntervalsBetween(startMs: Long, endMs: Long): List<AttributionIntervalEntity>
+
     @Query("DELETE FROM network_events")
     suspend fun deleteNetworkEvents()
 
