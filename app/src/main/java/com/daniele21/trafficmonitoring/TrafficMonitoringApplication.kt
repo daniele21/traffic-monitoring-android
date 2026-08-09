@@ -7,6 +7,7 @@ import com.daniele21.trafficmonitoring.data.ValidationDatabase
 import com.daniele21.trafficmonitoring.data.ValidationRepository
 import com.daniele21.trafficmonitoring.platform.AndroidNetworkContextReader
 import com.daniele21.trafficmonitoring.platform.AndroidTrafficCounterReader
+import com.daniele21.trafficmonitoring.platform.DeviceEnvironmentRecorder
 import com.daniele21.trafficmonitoring.platform.InProcessNetworkMonitor
 import com.daniele21.trafficmonitoring.platform.PendingIntentNetworkMonitor
 import com.daniele21.trafficmonitoring.usage.UsageDatabase
@@ -58,6 +59,7 @@ class TrafficMonitoringApplication : Application() {
         applicationScope.launch {
             runCatching {
                 validationRepository.recordProcessStart()
+                DeviceEnvironmentRecorder(this@TrafficMonitoringApplication).recordInto(validationRepository)
                 processExitRecorder.captureInto(validationRepository)
                 UsageHistoryBackfill(validationDatabase, usageRepository).run()
             }
