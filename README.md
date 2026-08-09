@@ -161,29 +161,35 @@ Rule:
 
 See [`docs/product-ux.md`](docs/product-ux.md), [`docs/e1-evidence-coverage.md`](docs/e1-evidence-coverage.md), [`docs/evidence-observability-roadmap.md`](docs/evidence-observability-roadmap.md) and [`docs/brand-kit.md`](docs/brand-kit.md).
 
-## Measurement + evidence architecture
+<p align="center">
+  <img src="docs/assets/architecture-diagram.jpg" alt="Traffic Monitoring Android Architecture" width="100%" />
+</p>
 
-```text
-ConnectivityManager evidence
-  ├─ in-process NetworkCallback
-  └─ PendingIntent availability callback
-              +
-TrafficStats cumulative counters
-              ↓
-       AttributionEngine
-              ↓
- inferred / unattributed / discarded
-              ↓
-   validation evidence (auditable)
-              +
- five-minute product UsageBuckets
-              ↓
-     Overview / Networks
-              +
- EvidenceSummaryCalculator
-              ↓
- Evidence Coverage / Measurement Health
-```
+The system follows a strict 4-tier local-first architecture that separates low-level Android platform signals from attribution logic, derived product analytics, and user-facing observability surfaces:
+
+### Tier 1 — Android platform signals
+- **`ConnectivityManager`**: Listens for network interface transitions using in-process [`NetworkCallback`](app/src/main/java/com/daniele21/trafficmonitoring/platform/InProcessNetworkMonitor.kt) when active, and manifest [`BroadcastReceiver` + `PendingIntent`](app/src/main/java/com/daniele21/trafficmonitoring/platform/PendingIntentNetworkMonitor.kt) for background availability events.
+- **`TrafficStats`**: Reads cumulative device RX/TX counters ([`TrafficCounterReader`](app/src/main/java/com/daniele21/trafficmonitoring/platform/TrafficCounterReader.kt)) across system interfaces while tracking source metadata to handle counter resets and boot shifts safely.
+- **`Lifecycle & recovery`**: Tracks process start/exit ([`ProcessExitRecorder`](app/src/main/java/com/daniele21/trafficmonitoring/background/ProcessExitRecorder.kt)), boot cycles, and schedules coarse WorkManager safety-net checks ([`RecoveryWorker`](app/src/main/java/com/daniele21/trafficmonitoring/background/RecoveryWorker.kt)) to catch missed boundaries.
+- **`Android constraints`**: Handles system-level execution rules explicitly—Doze mode, permissions (SSID visibility), VPN context, and aggressive OEM background kill behaviors.
+
+### Tier 2 — Raw evidence and attribution
+- **`Platform adapters`**: Normalizes platform callbacks ([`CurrentNetworkReader`](app/src/main/java/com/daniele21/trafficmonitoring/platform/CurrentNetworkReader.kt)) and sanitizes network identity (e.g. Wi-Fi SSID enrichment vs. transport fallback).
+- **`ValidationRepository`**: Persists raw, un-summarized network observations, counter snapshots, lifecycle events, and manual markers into Room/SQLite ([`ValidationDatabase`](app/src/main/java/com/daniele21/trafficmonitoring/data/ValidationDatabase.kt)) for auditable replay.
+- **`AttributionEngine`**: Pure domain logic ([`AttributionEngine`](app/src/main/java/com/daniele21/trafficmonitoring/domain/AttributionEngine.kt)) that computes usage intervals with explicit confidence classifications: **`attributed`**, **`unattributed`** (uncertain boundaries), or **`discarded`** (counter resets or invalid states).
+
+### Tier 3 — Derived product state
+- **`Usage analytics`**: Allocates accepted attribution intervals into fixed 5-minute buckets within a separate product database ([`UsageDatabase`](app/src/main/java/com/daniele21/trafficmonitoring/usage/UsageDatabase.kt), [`UsageBucketAllocator`](app/src/main/java/com/daniele21/trafficmonitoring/usage/UsageBucketAllocator.kt)) for trend, peak, and per-network totals.
+- **`Evidence model`**: Deterministically evaluates top-line metrics ([`EvidenceSummary`](app/src/main/java/com/daniele21/trafficmonitoring/evidence/EvidenceSummary.kt))—computing **Evidence Coverage %**, **Measurement Health** status (Good, Limited, Degraded), and continuity gaps.
+- **`Experiments / evaluation`**: Planned E3/E4 layer to evaluate bounded network hypothesis runs returning explicit outcomes (`PASS`, `FAIL`, `INCONCLUSIVE`).
+
+### Tier 4 — User experience and export
+- **`Overview + Networks`**: Primary analytics dashboard ([`ProductScreen`](app/src/main/java/com/daniele21/trafficmonitoring/ui/ProductScreen.kt)) presenting total usage, top networks, usage trends, and high-level health.
+- **`Evidence`**: Human-readable provenance screen ([`EvidenceComponents`](app/src/main/java/com/daniele21/trafficmonitoring/ui/EvidenceComponents.kt)) detailing coverage, health reasons, continuity gaps, and trust factors.
+- **`Monitor`**: Technical diagnostics console ([`ObservabilityDashboardScreen`](app/src/main/java/com/daniele21/trafficmonitoring/ui/ObservabilityDashboardScreen.kt)) for raw events, counter deltas, callback logs, and manual marker injection.
+- **`Export`**: Packaging pipeline ([`ValidationExporter`](app/src/main/java/com/daniele21/trafficmonitoring/export/ValidationExporter.kt)) that exports engineering diagnostic ZIPs and future Evidence Packs.
+
+> **Privacy boundary**: The architecture operates entirely on device. It records **no packet contents**, **no DNS queries or URLs**, **no browsing history**, requires **no local VPN interception**, and needs **no cloud backend**.
 
 The product history is stored separately from raw validation evidence. Accepted intervals are allocated into fixed five-minute buckets; integer byte totals are preserved exactly, discarded intervals never enter product totals, and unattributed usage remains explicit.
 

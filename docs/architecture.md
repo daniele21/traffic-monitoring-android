@@ -23,29 +23,20 @@ UI → Application → Domain ← Platform
 
 The domain layer must not depend on Android SDK classes or observability-vendor SDKs.
 
-## Logical product stack
+![Traffic Monitoring — Android Architecture](assets/architecture-diagram.jpg)
 
 ```text
-Android platform evidence
-ConnectivityManager / TrafficStats / lifecycle
+1. Android platform signals
+   ConnectivityManager (NetworkCallback + PendingIntent) / TrafficStats / Lifecycle & recovery / Android constraints
                  ↓
-Raw validation evidence
+2. Raw evidence and attribution
+   Platform adapters → ValidationRepository (Room/SQLite) → AttributionEngine (attributed / unattributed / discarded)
                  ↓
-AttributionEngine
+3. Derived product state
+   Usage analytics (5-min buckets in UsageDB)  +  Evidence model (Coverage & Health)  +  Experiments / evaluation
                  ↓
-Attribution intervals
-        ┌────────┴────────┐
-        ↓                 ↓
-Usage history        Evidence model
-5-minute buckets     coverage / health / gaps
-        ↓                 ↓
-Overview/Networks    Evidence / Experiments
-                          ↓
-                    Assertions / Evidence Pack
-                          ↓
-                    optional neutral export
-                          ↓
-                    optional OTLP adapter
+4. User experience and export
+   Overview + Networks  →  Evidence  →  Monitor  →  Export (Validation ZIP / Evidence Pack)
 ```
 
 ## Proposed packages
