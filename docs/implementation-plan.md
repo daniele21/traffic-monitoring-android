@@ -4,9 +4,22 @@
 
 The feasibility gate still governs product claims: code may be implemented ahead of field validation, but a milestone that requires real Android/OEM behavior is not marked **validated** until evidence exists.
 
-The central unresolved product question remains:
+The central unresolved measurement question remains:
 
 > Can Android provide sufficiently reliable network-boundary evidence in the background without a permanent Foreground Service?
+
+The product direction now has a second explicit question:
+
+> Can Traffic Monitoring turn that measurement into evidence-first observability that exposes uncertainty, supports repeatable experiments, and makes claims auditable?
+
+These questions are tracked separately:
+
+```text
+M roadmap = measurement reliability / Android feasibility
+E roadmap = evidence-first observability product
+```
+
+See `evidence-observability-roadmap.md` for the full E0–E6 plan.
 
 # M0 — Documentation and experiment design
 
@@ -197,18 +210,117 @@ Only after technical viability is established:
 - release signing/internal testing;
 - performance/battery benchmark documentation.
 
-## Current execution order
+# Parallel E roadmap — evidence-first observability
+
+The E roadmap does not replace the M roadmap. It turns measurement provenance into the differentiated product experience.
+
+## E0 — Positioning and semantics
+
+**Status: documentation foundation complete.**
+
+Defines:
+
+- category: **Evidence-first network observability for Android**;
+- promise: **Know your network usage — and the evidence behind it.**;
+- Usage vs Evidence vs Monitor separation;
+- Evidence Coverage / Measurement Health semantics;
+- experiment/assertion truthfulness rules.
+
+## E1 — Evidence Coverage + Measurement Health
+
+**Status: next recommended product implementation.**
+
+Deliver:
+
+- pure `EvidenceSummaryCalculator`;
+- attributed/unattributed reconciliation;
+- continuity/discarded evidence summary;
+- versioned Evidence Coverage definition;
+- compact Overview card;
+- human-readable Evidence detail.
+
+Gate: deterministic fixtures reconcile exactly with underlying attribution totals and every degraded health state is explainable.
+
+## E2 — Evidence Timeline + Evidence Pack
+
+**Status: planned.**
+
+Deliver:
+
+- normalized human-readable timeline;
+- product-facing `report.md` / `report.json`;
+- methodology/environment metadata;
+- machine-readable metrics/evidence files;
+- `manifest.sha256` integrity manifest;
+- optional network-name redaction.
+
+The existing validation ZIP remains the engineering/debug export.
+
+## E3 — Experiment Mode
+
+**Status: planned.**
+
+Deliver bounded evaluation runs with durable start/end boundaries, live observed usage/evidence summary and experiment-scoped Evidence Pack.
+
+Experiments reference normal measurement evidence; they do not create a second traffic collection pipeline.
+
+## E4 — Assertions
+
+**Status: planned.**
+
+Initial checks:
+
+- total/download/upload threshold;
+- no cellular fallback;
+- expected network continuity;
+- minimum Evidence Coverage;
+- maximum continuity gap;
+- no counter reset.
+
+Every result is `PASS`, `FAIL` or `INCONCLUSIVE`. Insufficient evidence never becomes PASS.
+
+## E5 — Optional app-level historical context
+
+**Status: exploratory / optional.**
+
+Only with explicit Usage Access and only if controlled Android tests show the platform's historical granularity is useful enough for the product claim.
+
+Core network observability must work without it.
+
+## E6 — Optional open observability export
+
+**Status: planned after evidence semantics stabilize.**
+
+Define a neutral evidence model first, then optionally adapt it to OpenTelemetry/OTLP.
+
+Remote telemetry remains disabled by default and must never become a measurement dependency.
+
+# Combined execution order
+
+Near-term work should run on two tracks:
 
 ```text
+TRACK A — reliability
 M1C/M1E real-device evidence
         ↓
 M2 replay acceptance
         ↓
-M4 usability refinement
-        ↓
 M5 multi-OEM matrix
+
+TRACK B — differentiated product
+E1 Evidence Coverage + Health
         ↓
-M6 release hardening
+E2 Evidence Timeline + Pack
+        ↓
+E3 Experiment Mode
+        ↓
+E4 Assertions
 ```
 
-Code through M5 may exist before these gates close; product claims must continue to follow the evidence.
+E1–E4 can progress while physical-device reliability testing continues because they surface uncertainty rather than hiding it.
+
+E5/E6 should wait until the core evidence semantics are stable.
+
+M6 release hardening should incorporate the evidence-first UX once both tracks are mature enough for internal testing.
+
+Code may exist before field gates close; product claims must continue to follow the evidence.
