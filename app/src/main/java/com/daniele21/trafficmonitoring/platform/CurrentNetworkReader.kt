@@ -1,10 +1,14 @@
 package com.daniele21.trafficmonitoring.platform
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiInfo
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
 interface NetworkContextReader {
@@ -38,8 +42,9 @@ data class NetworkContextSnapshot(
 }
 
 class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
-    private val connectivityManager =
-        context.applicationContext.getSystemService(ConnectivityManager::class.java)
+    private val appContext = context.applicationContext
+    private val connectivityManager = appContext.getSystemService(ConnectivityManager::class.java)
+    private val locationManager = appContext.getSystemService(LocationManager::class.java)
 
     override fun readCurrent(): NetworkContextSnapshot {
         val network = connectivityManager.activeNetwork ?: return offlineSnapshot()
@@ -69,10 +74,22 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
         val isMetered = capabilities?.let {
             !it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
         }
+        val isWifi = "wifi" in transports
+        val preciseLocationGranted = ContextCompat.checkSelfPermission(
+            appContext,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val locationEnabled = runCatching { locationManager.isLocationEnabled }.getOrDefault(true)
+        val ssidAvailability = WifiIdentityAccess.resolve(
+            isWifi = isWifi,
+            ssidKnown = ssid != null,
+            preciseLocationGranted = preciseLocationGranted,
+            locationEnabled = locationEnabled
+        ).storageValue
 
         val displayName = when {
             ssid != null -> ssid
-            "wifi" in transports -> "Wi-Fi · name unavailable"
+            isWifi -> "Wi-Fi"
             "cellular" in transports -> "Cellular"
             "ethernet" in transports -> "Ethernet"
             vpnPresent -> "VPN"
@@ -88,6 +105,7 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
             .put("vpnPresent", vpnPresent)
             .put("interfaceName", interfaceName)
             .put("isActiveNetworkAtObservation", isActiveNetwork)
+            .put("ssidAvailability", ssidAvailability)
             .toString()
 
         return NetworkContextSnapshot(
@@ -98,7 +116,7 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
             isNotVpn = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN),
             vpnPresent = vpnPresent,
             ssid = ssid,
-            ssidAvailability = if (ssid != null) "known" else "unavailable",
+            ssidAvailability = ssidAvailability,
             interfaceNames = interfaceName,
             displayName = displayName,
             rawSummaryJson = raw
@@ -113,7 +131,7 @@ class AndroidNetworkContextReader(context: Context) : NetworkContextReader {
         isNotVpn = null,
         vpnPresent = false,
         ssid = null,
-        ssidAvailability = "unavailable",
+        ssidAvailability = WifiIdentityAvailability.NOT_APPLICABLE.storageValue,
         interfaceNames = null,
         displayName = "Offline",
         rawSummaryJson = "{\"state\":\"offline\"}"
