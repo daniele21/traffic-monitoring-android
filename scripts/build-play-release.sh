@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/java17-env.sh"
+
 KEYCHAIN_SERVICE="com.daniele21.trafficmonitoring.android-upload"
 KEYCHAIN_ACCOUNT="traffic-monitoring-upload"
 DEFAULT_STORE_FILE="${HOME}/.keystore/traffic-monitoring-upload.p12"
@@ -35,6 +37,7 @@ Commands:
 Optional non-secret overrides:
   TRAFFIC_MONITORING_ANDROID_UPLOAD_STORE_FILE  Upload keystore path
   TRAFFIC_MONITORING_ANDROID_UPLOAD_KEY_ALIAS   Upload key alias
+  TRAFFIC_MONITORING_JAVA_HOME                  JDK 17 home
   ANDROID_HOME                                  Android SDK path
 
 Secrets are read from macOS Keychain and exported only for the Gradle/jarsigner
@@ -47,6 +50,25 @@ require_macos_keychain() {
         echo "This helper requires macOS Keychain ('security' command)." >&2
         exit 1
     fi
+}
+
+require_release_jdk() {
+    configure_jdk17
+    KEYTOOL="${JAVA_HOME}/bin/keytool"
+    JARSIGNER="${JAVA_HOME}/bin/jarsigner"
+
+    if [[ ! -x "$KEYTOOL" ]]; then
+        echo "JDK 17 keytool not found at $KEYTOOL" >&2
+        exit 1
+    fi
+    if [[ ! -x "$JARSIGNER" ]]; then
+        echo "JDK 17 jarsigner not found at $JARSIGNER" >&2
+        exit 1
+    fi
+}
+
+keytool_en() {
+    "$KEYTOOL" -J-Duser.language=en -J-Duser.country=US "$@"
 }
 
 require_gradle_wrapper() {
@@ -75,10 +97,7 @@ key_alias() {
 }
 
 create_upload_key() {
-    if ! command -v keytool >/dev/null 2>&1; then
-        echo "Error: keytool not found. Install/use JDK 17 first." >&2
-        exit 1
-    fi
+    require_release_jdk
 
     local file
     local alias
@@ -96,12 +115,13 @@ create_upload_key() {
     echo "Creating Play upload keystore:"
     echo "  File : $file"
     echo "  Alias: $alias"
+    echo "  JDK  : $JAVA_HOME"
     echo
     echo "keytool will ask for a strong password interactively."
     echo "Save that password securely; the private upload key cannot be reconstructed from the app."
     echo
 
-    keytool -genkeypair \
+    keytool_en -genkeypair \
         -keystore "$file" \
         -storetype PKCS12 \
         -alias "$alias" \
@@ -117,6 +137,7 @@ create_upload_key() {
 
 setup_keychain_password() {
     require_macos_keychain
+    require_release_jdk
 
     local file
     file="$(store_file)"
@@ -216,8 +237,9 @@ clear_signing_configuration() {
 }
 
 verify_keystore_password() {
+    require_release_jdk
     export TRAFFIC_MONITORING_KEYTOOL_PASSWORD="$SIGNING_PASSWORD"
-    keytool -list \
+    keytool_en -list \
         -keystore "$STORE_FILE" \
         -storetype PKCS12 \
         -storepass:env TRAFFIC_MONITORING_KEYTOOL_PASSWORD \
@@ -269,6 +291,7 @@ increment_version_code() {
 }
 
 build_release() {
+    require_release_jdk
     load_signing_configuration
     verify_keystore_password >/dev/null
     configure_android_sdk
@@ -286,12 +309,12 @@ build_release() {
     local code name safe_name output
     code="$(sed -n 's/^versionCode=//p' "$VERSION_FILE" | tail -n 1)"
     name="$(sed -n 's/^versionName=//p' "$VERSION_FILE" | tail -n 1)"
-    safe_name="$(echo "$name" | tr -c 'A-Za-z0-9._-' '-')"
+    safe_name="$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '-')"
     mkdir -p "$ROOT_DIR/dist"
     output="$ROOT_DIR/dist/traffic-monitoring-${safe_name}-vc${code}.aab"
     cp "$source_aab" "$output"
 
-    jarsigner -verify "$output" >/dev/null
+    "$JARSIGNER" -verify "$output" >/dev/null
     shasum -a 256 "$output" > "$output.sha256"
 
     echo
@@ -300,14 +323,18 @@ build_release() {
     echo "  SHA-256: $output.sha256"
     echo "  versionCode: $code"
     echo "  versionName: $name"
+    echo "  JDK: $JAVA_HOME"
     echo
     echo "Upload this .aab to Google Play Console > Testing > Internal testing."
 }
 
 show_certificate() {
+    require_release_jdk
     load_signing_configuration
     export TRAFFIC_MONITORING_KEYTOOL_PASSWORD="$SIGNING_PASSWORD"
-    keytool -list -v \
+
+    echo "Using JDK 17 keytool: $KEYTOOL"
+    keytool_en -list -v \
         -keystore "$STORE_FILE" \
         -storetype PKCS12 \
         -storepass:env TRAFFIC_MONITORING_KEYTOOL_PASSWORD \
@@ -326,16 +353,13 @@ sign_ci_aab() {
         echo "Input and output AAB paths must differ." >&2
         exit 2
     fi
-    if ! command -v jarsigner >/dev/null 2>&1; then
-        echo "jarsigner not found. Use JDK 17." >&2
-        exit 1
-    fi
 
+    require_release_jdk
     load_signing_configuration
     mkdir -p "$(dirname "$output_aab")"
     export TRAFFIC_MONITORING_JARSIGNER_PASSWORD="$SIGNING_PASSWORD"
 
-    jarsigner \
+    "$JARSIGNER" \
         -keystore "$STORE_FILE" \
         -storetype PKCS12 \
         -storepass:env TRAFFIC_MONITORING_JARSIGNER_PASSWORD \
@@ -344,7 +368,7 @@ sign_ci_aab() {
         "$input_aab" \
         "$KEY_ALIAS"
 
-    jarsigner -verify "$output_aab" >/dev/null
+    "$JARSIGNER" -verify "$output_aab" >/dev/null
     shasum -a 256 "$output_aab" > "$output_aab.sha256"
 
     echo "✅ Signed and verified CI AAB:"
