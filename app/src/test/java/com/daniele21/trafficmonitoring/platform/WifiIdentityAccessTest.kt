@@ -10,6 +10,7 @@ class WifiIdentityAccessTest {
             WifiIdentityAvailability.KNOWN,
             WifiIdentityAccess.resolve(
                 isWifi = true,
+                identityEnabled = true,
                 ssidKnown = true,
                 preciseLocationGranted = false,
                 locationEnabled = false
@@ -18,11 +19,12 @@ class WifiIdentityAccessTest {
     }
 
     @Test
-    fun `non wifi network does not ask for location`() {
+    fun `non wifi network does not ask for identity access`() {
         assertEquals(
             WifiIdentityAvailability.NOT_APPLICABLE,
             WifiIdentityAccess.resolve(
                 isWifi = false,
+                identityEnabled = false,
                 ssidKnown = false,
                 preciseLocationGranted = false,
                 locationEnabled = false
@@ -31,11 +33,26 @@ class WifiIdentityAccessTest {
     }
 
     @Test
-    fun `wifi without permission asks for permission`() {
+    fun `wifi names are opt in even when old location grant exists`() {
+        assertEquals(
+            WifiIdentityAvailability.OPT_IN_REQUIRED,
+            WifiIdentityAccess.resolve(
+                isWifi = true,
+                identityEnabled = false,
+                ssidKnown = false,
+                preciseLocationGranted = true,
+                locationEnabled = true
+            )
+        )
+    }
+
+    @Test
+    fun `opted in wifi without permission asks for permission`() {
         assertEquals(
             WifiIdentityAvailability.PERMISSION_REQUIRED,
             WifiIdentityAccess.resolve(
                 isWifi = true,
+                identityEnabled = true,
                 ssidKnown = false,
                 preciseLocationGranted = false,
                 locationEnabled = true
@@ -49,6 +66,7 @@ class WifiIdentityAccessTest {
             WifiIdentityAvailability.LOCATION_DISABLED,
             WifiIdentityAccess.resolve(
                 isWifi = true,
+                identityEnabled = true,
                 ssidKnown = false,
                 preciseLocationGranted = true,
                 locationEnabled = false
@@ -62,6 +80,7 @@ class WifiIdentityAccessTest {
             WifiIdentityAvailability.UNAVAILABLE,
             WifiIdentityAccess.resolve(
                 isWifi = true,
+                identityEnabled = true,
                 ssidKnown = false,
                 preciseLocationGranted = true,
                 locationEnabled = true
