@@ -10,8 +10,8 @@
     <application
         android:name=".TrafficMonitoringApplication"
         android:allowBackup="true"
-        android:icon="@drawable/ic_brand_shield"
-        android:roundIcon="@drawable/ic_brand_shield"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Traffic Monitoring"
         android:supportsRtl="true"
         android:theme="@style/Theme.TrafficMonitoring">

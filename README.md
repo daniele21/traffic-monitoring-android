@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/traffic-monitoring-lockup.svg" alt="Traffic Monitoring" width="720" />
+  <img src="docs/assets/shield_wordmark.png" alt="Traffic Monitoring" width="600" />
 </p>
 
 <p align="center"><strong>Evidence-first network observability for Android.</strong><br/>Know your network usage — and the evidence behind it.</p>

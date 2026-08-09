@@ -24,7 +24,7 @@ The shield remains the primary brand symbol. In Android:
 - the shield is not repeated inside every card or analytics panel;
 - small UI surfaces use the symbol rather than shrinking a full wordmark.
 
-The current Android resource `app/src/main/res/drawable/ic_brand_shield.xml` is a flat small-surface derivative for product rendering. The approved dimensional shield/lockup remain the canonical launch/marketing source assets and must not be modified with extra glow, bevel, shadow or altered proportions.
+The Android resource `app/src/main/res/drawable/ic_brand_shield.png` (and density variants) renders the approved dimensional shield asset across UI components and launcher icons. The approved dimensional shield/lockup remain the canonical launch/marketing source assets and must not be modified with extra glow, bevel, shadow or altered proportions.
 
 ## Color palette
 

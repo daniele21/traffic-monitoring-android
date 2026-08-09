@@ -55,8 +55,8 @@ Measurement claims continue to depend on physical-device evidence even when prod
 2. `mission-dashboard-ux.md`
 3. `product-ux.md`
 4. `../app/src/main/java/com/daniele21/trafficmonitoring/ui/theme/TrafficMonitoringTheme.kt`
-5. `../app/src/main/res/drawable/ic_brand_shield.xml`
-6. `../docs/assets/traffic-monitoring-lockup.svg`
+5. `../app/src/main/res/drawable/ic_brand_shield.png`
+6. `../docs/assets/shield_wordmark.png`
 
 ### Changing network attribution behavior
 
