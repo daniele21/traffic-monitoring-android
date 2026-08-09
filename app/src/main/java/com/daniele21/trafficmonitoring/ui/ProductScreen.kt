@@ -35,7 +35,6 @@ import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,7 +55,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private enum class ProductSection { OVERVIEW, NETWORKS }
+private enum class ProductSection { OVERVIEW, NETWORKS, EVIDENCE }
 
 @Composable
 fun ProductScreen(
@@ -88,8 +87,12 @@ fun ProductScreen(
             }
 
             when (section) {
-                ProductSection.OVERVIEW -> OverviewContent(state)
+                ProductSection.OVERVIEW -> OverviewContent(
+                    state = state,
+                    onOpenEvidence = { section = ProductSection.EVIDENCE }
+                )
                 ProductSection.NETWORKS -> NetworksContent(state)
+                ProductSection.EVIDENCE -> EvidenceContent(state)
             }
         }
     }
@@ -129,7 +132,7 @@ private fun ProductHeader(
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                "Know your network usage.",
+                "Know your network usage — and the evidence behind it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -151,22 +154,32 @@ private fun ProductHeader(
 
 @Composable
 private fun SectionSelector(section: ProductSection, onSelect: (ProductSection) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        FilterChip(
-            selected = section == ProductSection.OVERVIEW,
-            onClick = { onSelect(ProductSection.OVERVIEW) },
-            label = { Text("Overview") }
-        )
-        FilterChip(
-            selected = section == ProductSection.NETWORKS,
-            onClick = { onSelect(ProductSection.NETWORKS) },
-            label = { Text("Networks") }
-        )
+        item {
+            FilterChip(
+                selected = section == ProductSection.OVERVIEW,
+                onClick = { onSelect(ProductSection.OVERVIEW) },
+                label = { Text("Overview") }
+            )
+        }
+        item {
+            FilterChip(
+                selected = section == ProductSection.NETWORKS,
+                onClick = { onSelect(ProductSection.NETWORKS) },
+                label = { Text("Networks") }
+            )
+        }
+        item {
+            FilterChip(
+                selected = section == ProductSection.EVIDENCE,
+                onClick = { onSelect(ProductSection.EVIDENCE) },
+                label = { Text("Evidence") }
+            )
+        }
     }
 }
 
@@ -190,7 +203,10 @@ private fun TimeframeSelector(selected: ProductTimeframe, onSelect: (ProductTime
 }
 
 @Composable
-private fun OverviewContent(state: ProductUiState) {
+private fun OverviewContent(
+    state: ProductUiState,
+    onOpenEvidence: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -213,6 +229,12 @@ private fun OverviewContent(state: ProductUiState) {
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+        item {
+            EvidenceOverviewCard(
+                summary = state.evidence,
+                onOpenEvidence = onOpenEvidence
+            )
         }
         item { TrendCard(state.trend) }
         item {
