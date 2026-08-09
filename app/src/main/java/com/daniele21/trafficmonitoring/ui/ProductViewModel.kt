@@ -139,7 +139,7 @@ enum class ProductTimeframe(
 
 data class ProductUiState(
     val isLoading: Boolean = true,
-    val timeframe: ProductTimeframe = ProductTimeframe.MONTH,
+    val timeframe: ProductTimeframe = ProductTimeframe.TODAY,
     val customStartMs: Long? = null,
     val customEndExclusiveMs: Long? = null,
     val currentNetwork: String = "Checking…",
