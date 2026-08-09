@@ -68,6 +68,9 @@ interface ValidationDao {
     @Query("SELECT * FROM attribution_intervals WHERE runId = :runId ORDER BY startedAtMs ASC")
     suspend fun attributionIntervalsForRun(runId: String): List<AttributionIntervalEntity>
 
+    @Query("SELECT * FROM attribution_intervals ORDER BY startedAtMs ASC")
+    suspend fun allAttributionIntervals(): List<AttributionIntervalEntity>
+
     @Query("DELETE FROM network_events")
     suspend fun deleteNetworkEvents()
 
