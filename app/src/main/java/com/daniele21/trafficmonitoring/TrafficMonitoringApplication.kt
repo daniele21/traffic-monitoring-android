@@ -10,6 +10,7 @@ import com.daniele21.trafficmonitoring.platform.AndroidTrafficCounterReader
 import com.daniele21.trafficmonitoring.platform.InProcessNetworkMonitor
 import com.daniele21.trafficmonitoring.platform.PendingIntentNetworkMonitor
 import com.daniele21.trafficmonitoring.usage.UsageDatabase
+import com.daniele21.trafficmonitoring.usage.UsageHistoryBackfill
 import com.daniele21.trafficmonitoring.usage.UsageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +59,7 @@ class TrafficMonitoringApplication : Application() {
             runCatching {
                 validationRepository.recordProcessStart()
                 processExitRecorder.captureInto(validationRepository)
+                UsageHistoryBackfill(validationDatabase, usageRepository).run()
             }
         }
 
