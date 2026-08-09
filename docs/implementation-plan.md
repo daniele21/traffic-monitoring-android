@@ -150,7 +150,8 @@ Primary product surface:
 
 - Overview;
 - Networks;
-- Today / 7 days / 30 days / This month;
+- Today / 7 days / 30 days / This month / Custom;
+- custom date-range picker;
 - Total used;
 - Downloaded / Uploaded;
 - current network + simple monitoring status;
@@ -164,9 +165,9 @@ UX source of truth: `product-ux.md` and `brand-kit.md`.
 
 Remaining M4 refinement before release hardening:
 
-- custom date-range picker;
 - accessibility/device-size polish from real-phone testing;
-- empty/error-state copy refinement.
+- empty/error-state copy refinement;
+- usability validation on physical devices.
 
 # M5 — Reliability across devices/OEMs
 
