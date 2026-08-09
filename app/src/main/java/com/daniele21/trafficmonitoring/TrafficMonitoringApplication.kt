@@ -1,6 +1,8 @@
 package com.daniele21.trafficmonitoring
 
 import android.app.Application
+import com.daniele21.trafficmonitoring.background.ProcessExitRecorder
+import com.daniele21.trafficmonitoring.background.RecoveryScheduler
 import com.daniele21.trafficmonitoring.data.ValidationDatabase
 import com.daniele21.trafficmonitoring.data.ValidationRepository
 import com.daniele21.trafficmonitoring.platform.AndroidNetworkContextReader
@@ -32,14 +34,23 @@ class TrafficMonitoringApplication : Application() {
         PendingIntentNetworkMonitor(this)
     }
 
+    val processExitRecorder: ProcessExitRecorder by lazy {
+        ProcessExitRecorder(this)
+    }
+
     override fun onCreate() {
         super.onCreate()
 
+        RecoveryScheduler.schedule(this)
+
         applicationScope.launch {
-            runCatching { validationRepository.recordProcessStart() }
+            runCatching {
+                validationRepository.recordProcessStart()
+                processExitRecorder.captureInto(validationRepository)
+            }
         }
 
-        // M1B live diagnostics remain useful while the process exists.
+        // Live diagnostics remain useful while the process exists.
         inProcessNetworkMonitor = InProcessNetworkMonitor(
             context = this,
             repository = validationRepository,
@@ -49,6 +60,6 @@ class TrafficMonitoringApplication : Application() {
 
         // Do not automatically re-register the PendingIntent here. A process can be created solely
         // to deliver that PendingIntent; re-registering during Application.onCreate could create a
-        // duplicate immediate onAvailable wake. UI start / boot / package replacement own arming.
+        // duplicate immediate onAvailable wake. UI start / boot / package replacement / recovery own arming.
     }
 }
