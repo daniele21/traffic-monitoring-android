@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
                     productState = productState,
                     validationState = validationState,
                     onSelectTimeframe = productViewModel::selectTimeframe,
+                    onSelectCustomRange = productViewModel::selectCustomRange,
                     onRefreshProduct = productViewModel::refresh,
                     onRefreshNetwork = validationViewModel::refreshNetwork,
                     onArmBackground = validationViewModel::armBackgroundCapture,
