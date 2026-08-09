@@ -18,17 +18,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +50,10 @@ import androidx.compose.ui.unit.dp
 import com.daniele21.trafficmonitoring.R
 import com.daniele21.trafficmonitoring.usage.UsageNetworkTotal
 import com.daniele21.trafficmonitoring.usage.UsageTrendPoint
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private enum class ProductSection { OVERVIEW, NETWORKS }
@@ -51,10 +62,12 @@ private enum class ProductSection { OVERVIEW, NETWORKS }
 fun ProductScreen(
     state: ProductUiState,
     onSelectTimeframe: (ProductTimeframe) -> Unit,
+    onSelectCustomRange: (startMs: Long, endExclusiveMs: Long) -> Unit,
     onRefresh: () -> Unit,
     onOpenMonitor: () -> Unit
 ) {
     var section by rememberSaveable { mutableStateOf(ProductSection.OVERVIEW) }
+    var customRangeOpen by rememberSaveable { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -64,13 +77,31 @@ fun ProductScreen(
                 onOpenMonitor = onOpenMonitor
             )
             SectionSelector(section = section, onSelect = { section = it })
-            TimeframeSelector(selected = state.timeframe, onSelect = onSelectTimeframe)
+            TimeframeSelector(
+                selected = state.timeframe,
+                onSelect = { timeframe ->
+                    if (timeframe == ProductTimeframe.CUSTOM) customRangeOpen = true else onSelectTimeframe(timeframe)
+                }
+            )
+            if (state.isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
 
             when (section) {
                 ProductSection.OVERVIEW -> OverviewContent(state)
                 ProductSection.NETWORKS -> NetworksContent(state)
             }
         }
+    }
+
+    if (customRangeOpen) {
+        CustomRangeDialog(
+            onDismiss = { customRangeOpen = false },
+            onApply = { startMs, endMs ->
+                onSelectCustomRange(startMs, endMs)
+                customRangeOpen = false
+            }
+        )
     }
 }
 
@@ -224,7 +255,7 @@ private fun NetworksContent(state: ProductUiState) {
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                "${state.timeframe.label} · ${formatBytes(state.totalBytes)} total",
+                "${timeframeLabel(state)} · ${formatBytes(state.totalBytes)} total",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -283,7 +314,7 @@ private fun TotalUsageCard(state: ProductUiState) {
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
-                state.timeframe.label.uppercase(Locale.getDefault()),
+                timeframeLabel(state).uppercase(Locale.getDefault()),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -415,6 +446,43 @@ private fun NetworkRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomRangeDialog(
+    onDismiss: () -> Unit,
+    onApply: (Long, Long) -> Unit
+) {
+    val state = rememberDateRangePickerState()
+    val valid = state.selectedStartDateMillis != null && state.selectedEndDateMillis != null
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = {
+                    val startUtc = state.selectedStartDateMillis ?: return@Button
+                    val endUtc = state.selectedEndDateMillis ?: return@Button
+                    val startDate = Instant.ofEpochMilli(startUtc).atZone(ZoneOffset.UTC).toLocalDate()
+                    val endDate = Instant.ofEpochMilli(endUtc).atZone(ZoneOffset.UTC).toLocalDate().plusDays(1)
+                    val zone = ZoneId.systemDefault()
+                    onApply(
+                        startDate.atStartOfDay(zone).toInstant().toEpochMilli(),
+                        endDate.atStartOfDay(zone).toInstant().toEpochMilli()
+                    )
+                },
+                enabled = valid
+            ) { Text("Apply") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    ) {
+        DateRangePicker(
+            state = state,
+            modifier = Modifier.height(460.dp),
+            showModeToggle = false
+        )
+    }
+}
+
 @Composable
 private fun EmptyUsageText() {
     Text(
@@ -422,6 +490,17 @@ private fun EmptyUsageText() {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+private fun timeframeLabel(state: ProductUiState): String {
+    if (state.timeframe != ProductTimeframe.CUSTOM) return state.timeframe.label
+    val start = state.customStartMs ?: return "Custom"
+    val endExclusive = state.customEndExclusiveMs ?: return "Custom"
+    val formatter = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
+    val zone = ZoneId.systemDefault()
+    val startLabel = Instant.ofEpochMilli(start).atZone(zone).toLocalDate().format(formatter)
+    val endLabel = Instant.ofEpochMilli(endExclusive - 1).atZone(zone).toLocalDate().format(formatter)
+    return "$startLabel – $endLabel"
 }
 
 private fun friendlyTransport(value: String): String = when {
