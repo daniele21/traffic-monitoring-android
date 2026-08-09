@@ -2,21 +2,57 @@
   <img src="docs/assets/traffic-monitoring-lockup.svg" alt="Traffic Monitoring" width="720" />
 </p>
 
-<p align="center"><strong>Know your network usage.</strong><br/>See how much data you use, when you use it, and on which network.</p>
+<p align="center"><strong>Evidence-first network observability for Android.</strong><br/>Know your network usage — and the evidence behind it.</p>
 
 # Traffic Monitoring Android
 
-Privacy-first Android network-usage monitoring with a deliberately simple product surface and a separate auditable diagnostic layer.
+Traffic Monitoring is a privacy-first Android observability project that measures network usage while preserving the evidence quality behind every attribution.
 
-The product question is simple:
+It answers two questions:
 
-> How much data did this Android device use, when, and on which Wi-Fi / hotspot / mobile network?
+> **What happened?** How much data did this Android device use, when, and on which Wi-Fi / hotspot / mobile network?
+
+> **How do we know?** How much of that usage is actually supported by trustworthy attribution evidence, and where did measurement continuity break down?
 
 When attribution is uncertain, Traffic Monitoring keeps those bytes **Unattributed** rather than assigning them to the wrong network.
 
-## Current state
+The engineering philosophy is simple:
 
-Implementation now reaches **M5**, while the real-device feasibility gates remain explicit:
+> **Measure before claiming. Preserve uncertainty. Keep the user in control. Make results auditable.**
+
+## Why this is different
+
+Traffic Monitoring is not positioned as a generic data-usage meter and it is not a packet analyzer.
+
+```text
+Usage
+What happened?
+        ↓
+Evidence
+How trustworthy is the attribution?
+        ↓
+Experiments
+Can a network-behavior claim be evaluated?
+        ↓
+Monitor
+How did Android actually measure it?
+```
+
+The core product does not require packet contents, browsing history, destinations, DNS logging, a local VPN or a cloud backend.
+
+## Two development tracks
+
+The project now has two explicit roadmaps:
+
+```text
+M roadmap
+Android measurement reliability / feasibility
+
+E roadmap
+Evidence-first observability product
+```
+
+### Measurement state
 
 ```text
 M1A  persistence / export                         PASS on emulator
@@ -32,9 +68,23 @@ M5   OEM/device reliability instrumentation        implemented · multi-device m
 
 A green CI build does not turn M1E/M5 into validated milestones. Those require real phones and exported evidence.
 
+### Evidence-product roadmap
+
+```text
+E0  positioning / evidence semantics              documented
+E1  Evidence Coverage + Measurement Health        next implementation
+E2  human-readable Evidence Timeline + Pack       planned
+E3  Experiment Mode                               planned
+E4  deterministic Assertions                      planned
+E5  optional app-level historical context         exploratory
+E6  optional open observability / OTLP adapter    planned later
+```
+
+Full plan: [`docs/evidence-observability-roadmap.md`](docs/evidence-observability-roadmap.md).
+
 ## Minimal product UX
 
-The default application surface is now intentionally consumer-oriented rather than a validation console.
+The default application surface is intentionally simple.
 
 ### Overview
 
@@ -46,12 +96,43 @@ The default application surface is now intentionally consumer-oriented rather th
 - top networks;
 - explicit Unattributed usage when present.
 
+E1 adds a compact product-level summary such as:
+
+```text
+Evidence coverage
+92%
+
+11.4 GB attributed
+0.8 GB unattributed
+Measurement health · Good
+```
+
 ### Networks
 
 - ranked network usage;
 - human-readable network name;
 - friendly transport label;
 - percentage and total for the selected timeframe.
+
+### Evidence
+
+Evidence is the human-readable provenance layer: attribution coverage, continuity gaps, measurement health and a normalized timeline.
+
+It is deliberately different from Monitor.
+
+### Experiments
+
+After E3, users can create bounded evaluation runs such as a local-inference privacy test, inspect observed traffic/evidence and export a self-contained Evidence Pack.
+
+Assertions in E4 use three truthful outcomes:
+
+```text
+PASS
+FAIL
+INCONCLUSIVE
+```
+
+Insufficient evidence never becomes PASS by absence of evidence.
 
 ### Monitor
 
@@ -65,9 +146,13 @@ Advanced measurement detail stays behind **Monitor**:
 - manual markers;
 - validation ZIP export.
 
-Rule: if it explains **network usage**, it belongs in the product UI. If it explains **how Android measured it**, it belongs in Monitor.
+Rule:
 
-See [`docs/product-ux.md`](docs/product-ux.md) and [`docs/brand-kit.md`](docs/brand-kit.md).
+> If it explains **what happened**, it belongs in Usage.  
+> If it explains **how trustworthy the result is**, it belongs in Evidence.  
+> If it explains **how Android measured it**, it belongs in Monitor.
+
+See [`docs/product-ux.md`](docs/product-ux.md), [`docs/evidence-observability-roadmap.md`](docs/evidence-observability-roadmap.md) and [`docs/brand-kit.md`](docs/brand-kit.md).
 
 ## Measurement architecture
 
@@ -87,9 +172,37 @@ TrafficStats cumulative counters
  five-minute product UsageBuckets
               ↓
      Overview / Networks
+              +
+ future EvidenceSummaryCalculator
+              ↓
+ Evidence Coverage / Health / Experiments
 ```
 
 The product history is stored separately from raw validation evidence. Accepted intervals are allocated into fixed five-minute buckets; integer byte totals are preserved exactly, discarded intervals never enter product totals, and unattributed usage remains explicit.
+
+## Evidence-first direction
+
+The next product implementation is **E1 — Evidence Coverage + Measurement Health**.
+
+The planned evolution is:
+
+```text
+Attribution evidence
+        ↓
+Evidence Coverage + Health
+        ↓
+Human-readable Evidence Timeline
+        ↓
+Evidence Pack
+        ↓
+Experiment Mode
+        ↓
+Assertions
+        ↓
+optional app context / open observability export
+```
+
+The Evidence Pack is separate from the engineering validation ZIP. It is designed to communicate a result, methodology, uncertainty and machine-readable provenance to someone who did not run the test.
 
 ## Background strategy
 
@@ -149,7 +262,7 @@ Do **not** use package force-stop as the positive M1C test. Force-stop is useful
 
 ## Validation export
 
-The diagnostic ZIP includes:
+The engineering diagnostic ZIP includes:
 
 - `network-events.csv`
 - `counter-snapshots.csv`
@@ -161,6 +274,8 @@ The diagnostic ZIP includes:
 - `README.txt`
 
 It records enough lifecycle/background evidence to explain uncertainty without collecting packet contents, destinations, DNS queries, browsing history, account identifiers or device hardware identifiers.
+
+The planned **Evidence Pack** is a separate product-facing export with a concise report, methodology, environment, metrics and integrity manifest.
 
 ## Brand system
 
@@ -195,11 +310,14 @@ CI publishes an intentionally unsigned release AAB for local signing. See [`docs
 
 ## Documentation
 
-- [`AGENTS.md`](AGENTS.md) — implementation-agent entry point.
+- [`AGENTS.md`](AGENTS.md) — implementation-agent entry point and invariants.
 - [`docs/README.md`](docs/README.md) — documentation map.
-- [`docs/product-ux.md`](docs/product-ux.md) — minimal consumer UX.
+- [`docs/product-spec.md`](docs/product-spec.md) — evidence-first positioning, scope and truthfulness.
+- [`docs/evidence-observability-roadmap.md`](docs/evidence-observability-roadmap.md) — E0–E6 product roadmap.
+- [`docs/product-ux.md`](docs/product-ux.md) — Usage / Evidence / Experiments / Monitor UX boundary.
 - [`docs/brand-kit.md`](docs/brand-kit.md) — brand and product-language rules.
-- [`docs/implementation-plan.md`](docs/implementation-plan.md) — milestone status through M5.
+- [`docs/architecture.md`](docs/architecture.md) — measurement, evidence and experiment architecture.
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — combined M/E milestone status.
 - [`docs/measurement-engine.md`](docs/measurement-engine.md) — counters/identity/attribution semantics.
 - [`docs/background-strategy.md`](docs/background-strategy.md) — background strategy and FGS escalation.
 - [`docs/m1b-validation.md`](docs/m1b-validation.md) — validated counter baseline.
@@ -213,4 +331,6 @@ CI publishes an intentionally unsigned release AAB for local signing. See [`docs
 
 Do not make measurement reliability claims that the field evidence has not earned.
 
-The implementation can move ahead; confidence in network attribution must continue to come from exported real-device runs.
+Do not make observability claims that the underlying Android data source cannot support.
+
+The implementation can move ahead; confidence in the result must continue to come from deterministic evidence and exported real-device runs.
