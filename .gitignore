@@ -15,3 +15,4 @@ dist/
 *.keystore
 *.p12
 *.pfx
+.tooling/
