@@ -42,7 +42,7 @@ The core product does not require packet contents, browsing history, destination
 
 ## Two development tracks
 
-The project now has two explicit roadmaps:
+The project has two explicit roadmaps:
 
 ```text
 M roadmap
@@ -72,8 +72,8 @@ A green CI build does not turn M1E/M5 into validated milestones. Those require r
 
 ```text
 E0  positioning / evidence semantics              documented
-E1  Evidence Coverage + Measurement Health        next implementation
-E2  human-readable Evidence Timeline + Pack       planned
+E1  Evidence Coverage + Measurement Health        implemented · product validation pending
+E2  human-readable Evidence Timeline + Pack       next
 E3  Experiment Mode                               planned
 E4  deterministic Assertions                      planned
 E5  optional app-level historical context         exploratory
@@ -92,19 +92,18 @@ The default application surface is intentionally simple.
 - **Total used**;
 - **Downloaded** / **Uploaded**;
 - Today / 7 days / 30 days / This month / **Custom**;
+- **Evidence Coverage** + **Measurement Health**;
 - restrained usage trend and peak;
 - top networks;
 - explicit Unattributed usage when present.
 
-E1 adds a compact product-level summary such as:
+E1 now exposes a compact product-level summary such as:
 
 ```text
-Evidence coverage
-92%
-
-11.4 GB attributed
-0.8 GB unattributed
+Evidence
+92% Evidence coverage
 Measurement health · Good
+View evidence →
 ```
 
 ### Networks
@@ -116,7 +115,15 @@ Measurement health · Good
 
 ### Evidence
 
-Evidence is the human-readable provenance layer: attribution coverage, continuity gaps, measurement health and a normalized timeline.
+Evidence is the human-readable provenance layer. E1 currently shows:
+
+- Evidence Coverage;
+- Measurement Health with explicit reasons;
+- attributed vs unattributed usage;
+- continuity gaps;
+- discarded intervals;
+- longest continuity gap;
+- Coverage v1 methodology.
 
 It is deliberately different from Monitor.
 
@@ -152,9 +159,9 @@ Rule:
 > If it explains **how trustworthy the result is**, it belongs in Evidence.  
 > If it explains **how Android measured it**, it belongs in Monitor.
 
-See [`docs/product-ux.md`](docs/product-ux.md), [`docs/evidence-observability-roadmap.md`](docs/evidence-observability-roadmap.md) and [`docs/brand-kit.md`](docs/brand-kit.md).
+See [`docs/product-ux.md`](docs/product-ux.md), [`docs/e1-evidence-coverage.md`](docs/e1-evidence-coverage.md), [`docs/evidence-observability-roadmap.md`](docs/evidence-observability-roadmap.md) and [`docs/brand-kit.md`](docs/brand-kit.md).
 
-## Measurement architecture
+## Measurement + evidence architecture
 
 ```text
 ConnectivityManager evidence
@@ -173,31 +180,52 @@ TrafficStats cumulative counters
               ↓
      Overview / Networks
               +
- future EvidenceSummaryCalculator
+ EvidenceSummaryCalculator
               ↓
- Evidence Coverage / Health / Experiments
+ Evidence Coverage / Measurement Health
 ```
 
 The product history is stored separately from raw validation evidence. Accepted intervals are allocated into fixed five-minute buckets; integer byte totals are preserved exactly, discarded intervals never enter product totals, and unattributed usage remains explicit.
 
+E1 deliberately reads discarded/continuity evidence from the validation store because those intervals must affect Measurement Health without contaminating consumer usage totals.
+
+## Evidence Coverage v1
+
+```text
+accountedBytes = attributedBytes + unattributedBytes
+Evidence Coverage = attributedBytes / accountedBytes
+```
+
+If there is no accountable usage, the app shows **Not enough data** rather than manufacturing 100% coverage.
+
+Measurement Health is evaluated separately:
+
+```text
+Good      coverage >= 95% and no discarded evidence
+Limited   incomplete coverage or some discarded evidence
+Degraded  coverage < 80%, a gap >= 30m, or >= 3 discarded intervals
+```
+
+The exact semantics and tests are documented in [`docs/e1-evidence-coverage.md`](docs/e1-evidence-coverage.md).
+
 ## Evidence-first direction
 
-The next product implementation is **E1 — Evidence Coverage + Measurement Health**.
+The next product milestone is **E2 — Evidence Timeline + Evidence Pack**.
 
-The planned evolution is:
+The evolution is:
 
 ```text
 Attribution evidence
         ↓
-Evidence Coverage + Health
+Evidence Coverage + Health        E1 ✓
         ↓
-Human-readable Evidence Timeline
+Human-readable Evidence Timeline  E2
         ↓
-Evidence Pack
+Evidence Pack                     E2
         ↓
-Experiment Mode
+Experiment Mode                   E3
         ↓
-Assertions
+Assertions                       E4
         ↓
 optional app context / open observability export
 ```
@@ -241,7 +269,7 @@ com.daniele21.trafficmonitoring.debug
 Current development version:
 
 ```text
-0.2.0-m5-dev
+0.3.0-e1-dev
 ```
 
 ## Physical-device field validation
@@ -314,6 +342,7 @@ CI publishes an intentionally unsigned release AAB for local signing. See [`docs
 - [`docs/README.md`](docs/README.md) — documentation map.
 - [`docs/product-spec.md`](docs/product-spec.md) — evidence-first positioning, scope and truthfulness.
 - [`docs/evidence-observability-roadmap.md`](docs/evidence-observability-roadmap.md) — E0–E6 product roadmap.
+- [`docs/e1-evidence-coverage.md`](docs/e1-evidence-coverage.md) — implemented Coverage/Health semantics, architecture and tests.
 - [`docs/product-ux.md`](docs/product-ux.md) — Usage / Evidence / Experiments / Monitor UX boundary.
 - [`docs/brand-kit.md`](docs/brand-kit.md) — brand and product-language rules.
 - [`docs/architecture.md`](docs/architecture.md) — measurement, evidence and experiment architecture.
