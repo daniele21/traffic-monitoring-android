@@ -27,6 +27,7 @@ fun TrafficMonitoringRoot(
     productState: ProductUiState,
     validationState: ValidationUiState,
     onSelectTimeframe: (ProductTimeframe) -> Unit,
+    onSelectCustomRange: (Long, Long) -> Unit,
     onRefreshProduct: () -> Unit,
     onRefreshNetwork: () -> Unit,
     onArmBackground: () -> Unit,
@@ -42,6 +43,7 @@ fun TrafficMonitoringRoot(
         ProductScreen(
             state = productState,
             onSelectTimeframe = onSelectTimeframe,
+            onSelectCustomRange = onSelectCustomRange,
             onRefresh = onRefreshProduct,
             onOpenMonitor = { monitorOpen = true }
         )
