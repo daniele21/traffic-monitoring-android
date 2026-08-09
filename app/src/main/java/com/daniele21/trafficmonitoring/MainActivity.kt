@@ -1,9 +1,14 @@
 package com.daniele21.trafficmonitoring
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.daniele21.trafficmonitoring.ui.ProductViewModel
@@ -23,6 +28,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val wifiIdentityPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        if (::productViewModel.isInitialized) productViewModel.refresh()
+        if (::validationViewModel.isInitialized) validationViewModel.refreshNetwork()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         validationViewModel = ViewModelProvider(this)[ValidationViewModel::class.java]
@@ -38,6 +50,7 @@ class MainActivity : ComponentActivity() {
                     onSelectTimeframe = productViewModel::selectTimeframe,
                     onSelectCustomRange = productViewModel::selectCustomRange,
                     onRefreshProduct = productViewModel::refresh,
+                    onRequestWifiIdentity = ::requestWifiIdentityAccess,
                     onRefreshNetwork = validationViewModel::refreshNetwork,
                     onArmBackground = validationViewModel::armBackgroundCapture,
                     onAddMarker = validationViewModel::addMarker,
@@ -64,5 +77,18 @@ class MainActivity : ComponentActivity() {
             validationViewModel.recordBackground()
         }
         super.onStop()
+    }
+
+    private fun requestWifiIdentityAccess() {
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!granted) {
+            wifiIdentityPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+        }
     }
 }
